@@ -4,8 +4,7 @@ function J = compute_geometric_jacobian(DHTable, joints_str)
     JO = [];
 
     N = length(joints_str);
-
-    A = build_transformation_matrices(DHTable, joints_str);
+    A = build_transformation_matrices(DHTable);
     [p_vec, z_vec, T0N] = direct_kinematics(A); 
 
     for i = 1:N
@@ -22,6 +21,4 @@ function J = compute_geometric_jacobian(DHTable, joints_str)
 
     J = [JP; JO];
     J = simplify(J);
-    disp("Geometric Jacobian matrix:");
-    disp(J);
 end
