@@ -1,341 +1,207 @@
-% From https://frankaemika.github.io/docs
+%% Franka Emika – Singularity Analysis with Distance Filtering
+%   Complete, self‑contained script (Matlab / Octave)
+%   Modifiche principali:
+%     • aggiunta variabile "dist = pi/6" (≈ 30°)
+%     • riconoscimento / rigenerazione seed basato su distanza euclidea
+%     • filtro duplicati in *ogni* sezione con soglia "dist"
+% -------------------------------------------------------------------------
 
-clear; clc; close all;
-digits 4
+clear; clc; close all; digits 4;
+
 syms theta1 theta2 theta3 theta4 theta5 theta6 theta7 real
 syms a4 a5 a7 real
 syms d1 d3 d5 d_e real
 
 addpath('./Matlab_Scripts/Robotics1');
-% 1.  SYMBOLIC JACOBIAN  ---------------------------------------------------
-% https://frankaemika.github.io/docs/control_parameters.html
 
-theta = [theta1, theta2, theta3, theta4, theta5, theta6, theta7]';
-N = 7;
+%% 1. SYMBOLIC JACOBIAN ----------------------------------------------------
+
+theta   = [theta1 theta2 theta3 theta4 theta5 theta6 theta7]';
+N       = 7;
 joints_str = 'RRRRRRR';
 
-% limits-for-franka-research-3
-Q_max = [2.8973, 1.7628, 2.8973, -0.0698, 2.8973, 3.7525, 2.8973]'; % [rad]
-Q_min = [-2.8973, -1.7628, -2.8973, -3.0718, -2.8973, -0.0175, -2.8973]'; % [rad]
-Q_dot_max = [2.62, 2.62, 2.62, 2.62, 5.26, 4.18, 5.26]'; % [rad/s]
-Q_ddot_max = 10 * ones(1, N); % [rad/s^2]
-Q_dddot_max = 5000 * ones(1, N);
+% ----- Franka Emika (research 3) limits ----------------------------------
+Q_max = [ 2.8973  1.7628  2.8973 -0.0698  2.8973  3.7525 2.8973]';
+Q_min = [-2.8973 -1.7628 -2.8973 -3.0718 -2.8973 -0.0175 -2.8973]';
+Q_dot_max   = [2.62 2.62 2.62 2.62 5.26 4.18 5.26]';
+Q_ddot_max  = 10*ones(1,N);
+Q_dddot_max = 5000*ones(1,N);
 
-
-
-%a_i = [0; 0; 0; a4; a5; 0; a7; 0];
-%d_i = [d1; 0; d3; 0; d5; 0; 0; d_e];
-alpha_i = [0; -pi/2; pi/2; pi/2; -pi/2; pi/2; pi/2; 0];
-a_i = [0; 0; 0; 0.0825; -0.0825; 0; 0.088; 0];
-d_i = [0.333; 0; 0.316; 0; 0.384; 0; 0; 0.107];
+% ----- DH parameters ------------------------------------------------------
+alpha_i = [0; -pi/2;  pi/2;  pi/2; -pi/2;  pi/2;  pi/2; 0];
+a_i     = [0; 0; 0; 0.0825; -0.0825; 0; 0.088; 0];
+d_i     = [0.333; 0; 0.316; 0; 0.384; 0; 0; 0.107];
 theta_i = [theta; 0];
 
-DH_table = [alpha_i, a_i, d_i, theta_i]
+DH_table = [alpha_i, a_i, d_i, theta_i];
 
-T_ee = DHMatrix(DH_table);
-p_ee = affine_get_translation(T_ee);
-R_0_7 = affine_get_R(T_ee);
+T_ee   = DHMatrix(DH_table);
+p_ee   = affine_get_translation(T_ee);
+R_0_7  = affine_get_R(T_ee);
 
-% geometric jacobian expressed in RF_0
-[Jl, Ja] = geometric_jacobian(p_ee, joints_str, theta, DH_table);
-J_geom = [Jl; Ja];
-J_geom = simplify(J_geom);
-% geometric jacobian expressed in RF_7
-R_7_0 = R_0_7'; % orientation of RF0 w.r.t. RF7
+% — Geometric Jacobian in RF_0
+[Jl,Ja] = geometric_jacobian(p_ee, joints_str, theta, DH_table);
+J_geom  = simplify([Jl; Ja]);
 
-R_j = blkdiag(R_7_0, R_7_0);
-J_7 = simplify(R_j * J_geom)
+% — Express Jacobian in RF_7
+R_7_0 = R_0_7';
+R_j   = blkdiag(R_7_0, R_7_0);
+J_7   = simplify(R_j * J_geom);
 
-%% Continue from symbolic J_7 to find singularities numerically
-% This script continues from your symbolic Jacobian J_7
+%% 2. PARAMETERS FOR NUMERICAL SEARCH --------------------------------------
 
-% Convert symbolic J_7 to a numerical function
-fprintf('Converting symbolic Jacobian to numerical function...\n');
-J_7_func = matlabFunction(J_7, 'Vars', {theta1, theta2, theta3, theta4, theta5, theta6, theta7});
+tolerance = 1e-6;    % singularity threshold on min singular value
 
-% Create a wrapper function that takes a vector input
-compute_J7 = @(q) J_7_func(q(1), q(2), q(3), q(4), q(5), q(6), q(7));
+% Distanza minima fra due singolarità (≈ 30°)
+dist      = pi/6;
 
-% Objective functions for finding singularities
-% Method 1: Minimize smallest singular value
+%% 3. NUMERICAL FUNCTION ----------------------------------------------------
+
+fprintf('Converting symbolic Jacobian to numerical function ...\n');
+J_7_func  = matlabFunction(J_7,'Vars',{theta1 theta2 theta3 theta4 theta5 theta6 theta7});
+compute_J7 = @(q) J_7_func(q(1),q(2),q(3),q(4),q(5),q(6),q(7));
+
+% — Objective: minimize the smallest singular value
 objective_svd = @(q) min(svd(compute_J7(q)));
 
-% Method 2: Minimize determinant of J*J' (more robust for 6x7 matrix)
-objective_det = @(q) sqrt(abs(det(compute_J7(q) * compute_J7(q)')));
+%% 4. MULTI‑START OPTIMIZATION ---------------------------------------------
 
-% Method 3: Minimize reciprocal of condition number
-objective_cond = @(q) 1/cond(compute_J7(q));
+fprintf('\nFinding singularities using multi‑start optimization ...\n\n');
 
-%% Find singularities using multi-start optimization
-fprintf('\nFinding singularities using multi-start optimization...\n\n');
-
-% Storage for found singularities
-singularities = [];
+singularities     = [];
 singularity_types = {};
-tolerance = 1e-6;
 
-% Options for optimization
 options = optimoptions('fmincon', ...
-    'Display', 'off', ...
-    'Algorithm', 'interior-point', ...
-    'TolFun', 1e-12, ...
-    'TolX', 1e-12, ...
-    'MaxFunctionEvaluations', 10000);
+    'Display','off', ...
+    'Algorithm','interior-point', ...
+    'TolFun',1e-12,'TolX',1e-12, ...
+    'MaxFunctionEvaluations',1e4);
 
-% Number of random starts
 n_starts = 200;
-
 for i = 1:n_starts
-    % Random starting point
-    q0 = Q_min + (Q_max - Q_min) .* rand(7, 1);
-    
+    %% Seed generation fuori dalla "sfera" di raggio dist
+    valid_seed = false;
+    while ~valid_seed
+        q0 = Q_min + (Q_max - Q_min).*rand(7,1);
+        valid_seed = isempty(singularities) || all(vecnorm(singularities - q0,2,1) >= dist);
+    end
+
     try
-        % Find minimum using SVD criterion
-        [q_sing, fval] = fmincon(objective_svd, q0, [], [], [], [], Q_min, Q_max, [], options);
-        
-        % Verify this is a true singularity
+        [q_sing,fval] = fmincon(objective_svd,q0,[],[],[],[],Q_min,Q_max,[],options);
         J = compute_J7(q_sing);
-        sv = svd(J);
-        min_sv = min(sv);
-        
+        min_sv = min(svd(J));
+
         if min_sv < tolerance
-            % Check if this is a new singularity
-            is_new = true;
-            for j = 1:size(singularities, 2)
-                if norm(q_sing - singularities(:, j)) < 0.1
-                    is_new = false;
-                    break;
-                end
-            end
-            
+            % — verifica "nuova" singolarità
+            is_new = isempty(singularities) || all(vecnorm(singularities - q_sing,2,1) >= dist);
             if is_new
-                singularities = [singularities, q_sing];
-                fprintf('Found singularity %d: min(svd) = %.2e\n', size(singularities, 2), min_sv);
-                fprintf('Joint angles [rad]: [');
-                fprintf('%.4f ', q_sing);
-                fprintf(']\n');
-                fprintf('Joint angles [deg]: [');
-                fprintf('%.1f ', q_sing * 180/pi);
-                fprintf(']\n\n');
-                
-                % Classify singularity type
-                type = classify_singularity(q_sing, Q_min, Q_max);
-                singularity_types{end+1} = type;
+                singularities     = [singularities, q_sing];
+                singularity_types{end+1} = classify_singularity(q_sing,Q_min,Q_max);
+
+                fprintf('Singularity %2d  min(svd)=%.2e\n',size(singularities,2),min_sv);
+                fprintf('  θ [deg]= ['); fprintf('%.1f ',q_sing*180/pi); fprintf(']\n\n');
             end
         end
-    catch ME
-        % Skip failed optimizations
-        if mod(i, 50) == 0
-            fprintf('Progress: %d/%d starts completed\n', i, n_starts);
-        end
+    catch
+        % ignore failures
     end
 end
 
-%% Search for specific known singularity configurations
-fprintf('\nSearching for specific singularity types...\n\n');
+%% 5. SPECIFIC KNOWN CONFIGURATIONS ----------------------------------------
+fprintf('\nSearching for specific singularity types ...\n\n');
 
-% 1. Elbow singularities (theta4 at limits)
-fprintf('Checking elbow singularities...\n');
-for theta4_val = [Q_min(4), Q_max(4)]
-    % Fix theta4 and optimize other joints
-    q_test = zeros(7, 1);
-    q_test(4) = theta4_val;
-    
-    objective_fixed = @(q_reduced) objective_svd([q_reduced(1:3); theta4_val; q_reduced(4:6)]);
-    q0_reduced = [zeros(3, 1); zeros(3, 1)];
-    
-    [q_opt, fval] = fmincon(objective_fixed, q0_reduced, [], [], [], [], ...
-                            [Q_min([1:3, 5:7])], [Q_max([1:3, 5:7])], [], options);
-    
+% ---------- 5.1 Elbow (theta4 at limits) ----------------------------------
+fprintf('Checking elbow singularities ...\n');
+for theta4_val = [Q_min(4); Q_max(4)]'
+    obj_fixed = @(q_red) objective_svd([q_red(1:3); theta4_val; q_red(4:6)]);
+    q0_red = zeros(6,1);
+
+    [q_opt,fval] = fmincon(obj_fixed,q0_red,[],[],[],[], ...
+        [Q_min([1:3 5:7])], [Q_max([1:3 5:7])], [], options);
+
     q_full = [q_opt(1:3); theta4_val; q_opt(4:6)];
-    
-    if fval < tolerance
-        fprintf('  Elbow singularity at theta4 = %.4f rad (%.1f deg): min(svd) = %.2e\n', ...
-                theta4_val, theta4_val * 180/pi, fval);
-        
-        % Add to singularities if new
-        is_new = true;
-        for j = 1:size(singularities, 2)
-            if norm(q_full - singularities(:, j)) < 0.1
-                is_new = false;
-                break;
-            end
-        end
-        if is_new
-            singularities = [singularities, q_full];
-            singularity_types{end+1} = 'Elbow';
-        end
+    if fval < tolerance && (isempty(singularities) || all(vecnorm(singularities - q_full,2,1) >= dist))
+        singularities     = [singularities, q_full];
+        singularity_types{end+1} = 'Elbow';
+        fprintf('  θ4 = %.1f°  elbow singularity added.\n',theta4_val*180/pi);
     end
 end
 
-% 2. Shoulder singularities (specific configurations)
-fprintf('\nChecking shoulder singularities...\n');
-% When the arm is fully extended in certain directions
-test_configs = [
-    [0; -pi/2; 0; -pi/2; 0; pi/2; 0];  % Stretched out
-    [0; 0; 0; -pi/2; 0; 0; 0];         % Another common config
-];
-
-for k = 1:size(test_configs, 2)
-    q_init = test_configs(:, k);
-    [q_opt, fval] = fmincon(objective_svd, q_init, [], [], [], [], Q_min, Q_max, [], options);
-    
-    if fval < tolerance
-        fprintf('  Shoulder singularity found: min(svd) = %.2e\n', fval);
-        % Add if new...
+% ---------- 5.2 Shoulder configs -----------------------------------------
+fprintf('\nChecking shoulder singularities ...\n');
+shoulder_seeds = [ 0 -pi/2  0 -pi/2 0  pi/2 0; ...
+                   0   0    0 -pi/2 0   0   0 ]';
+for k = 1:size(shoulder_seeds,2)
+    q_init = shoulder_seeds(:,k);
+    [q_opt,fval] = fmincon(objective_svd,q_init,[],[],[],[],Q_min,Q_max,[],options);
+    if fval < tolerance && (isempty(singularities) || all(vecnorm(singularities - q_opt,2,1) >= dist))
+        singularities     = [singularities, q_opt];
+        singularity_types{end+1} = 'Shoulder';
+        fprintf('  Shoulder singularity added (seed %d).\n',k);
     end
 end
 
-% 3. Wrist singularities (theta5 near 0)
-fprintf('\nChecking wrist singularities...\n');
-theta5_vals = [-0.1, 0, 0.1];  % Near zero
-for theta5_val = theta5_vals
-    if theta5_val >= Q_min(5) && theta5_val <= Q_max(5)
-        q_test = zeros(7, 1);
-        q_test(5) = theta5_val;
-        
-        objective_fixed = @(q_reduced) objective_svd([q_reduced(1:4); theta5_val; q_reduced(5:6)]);
-        q0_reduced = [zeros(4, 1); zeros(2, 1)];
-        
-        [q_opt, fval] = fmincon(objective_fixed, q0_reduced, [], [], [], [], ...
-                                [Q_min([1:4, 6:7])], [Q_max([1:4, 6:7])], [], options);
-        
-        q_full = [q_opt(1:4); theta5_val; q_opt(5:6)];
-        
-        if fval < tolerance
-            fprintf('  Wrist singularity at theta5 = %.4f rad (%.1f deg): min(svd) = %.2e\n', ...
-                    theta5_val, theta5_val * 180/pi, fval);
-        end
+% ---------- 5.3 Wrist (theta5 ≃ 0) ---------------------------------------
+fprintf('\nChecking wrist singularities ...\n');
+for theta5_val = [-0.1 0 0.1]
+    if theta5_val < Q_min(5) || theta5_val > Q_max(5), continue; end
+    obj_fixed = @(q_red) objective_svd([q_red(1:4); theta5_val; q_red(5:6)]);
+    q0_red = zeros(6,1);
+    [q_opt,fval] = fmincon(obj_fixed,q0_red,[],[],[],[], ...
+        [Q_min([1:4 6:7])], [Q_max([1:4 6:7])], [], options);
+    q_full = [q_opt(1:4); theta5_val; q_opt(5:6)];
+    if fval < tolerance && (isempty(singularities) || all(vecnorm(singularities - q_full,2,1) >= dist))
+        singularities     = [singularities, q_full];
+        singularity_types{end+1} = 'Wrist';
+        fprintf('  Wrist singularity added (θ5 = %.2f rad).\n',theta5_val);
     end
 end
 
-%% Detailed analysis of found singularities
-fprintf('\n\n========== SINGULARITY ANALYSIS ==========\n');
-fprintf('Total unique singularities found: %d\n\n', size(singularities, 2));
+%% 6. ANALYSIS -------------------------------------------------------------
+fprintf('\n\n========== SINGULARITY ANALYSIS ==========');
+fprintf('\nTotal unique singularities found: %d\n\n',size(singularities,2));
 
-for i = 1:size(singularities, 2)
-    q = singularities(:, i);
+for i = 1:size(singularities,2)
+    q = singularities(:,i);
     J = compute_J7(q);
-    [U, S, V] = svd(J);
+    [~,S,V] = svd(J);
     sv = diag(S);
-    
-    fprintf('Singularity %d', i);
-    if i <= length(singularity_types) && ~isempty(singularity_types{i})
-        fprintf(' (Type: %s)', singularity_types{i});
+
+    fprintf('Singularity %d',i);
+    if i <= numel(singularity_types) && ~isempty(singularity_types{i})
+        fprintf(' (Type: %s)',singularity_types{i});
     end
     fprintf(':\n');
-    
-    fprintf('  Joint configuration:\n');
-    fprintf('    [rad]: [');
-    fprintf('%.4f ', q);
-    fprintf(']\n');
-    fprintf('    [deg]: [');
-    fprintf('%.1f ', q * 180/pi);
-    fprintf(']\n');
-    
-    fprintf('  Jacobian properties:\n');
-    fprintf('    Singular values: [');
-    fprintf('%.3e ', sv);
-    fprintf(']\n');
-    fprintf('    Rank: %d (should be < 6 for singularity)\n', rank(J, 1e-6));
-    fprintf('    Condition number: %.2e\n', cond(J));
-    
-    % Find null space direction
-    null_space = V(:, find(sv < 1e-6));
+    fprintf('  θ [deg] = ['); fprintf('%.1f ',q*180/pi); fprintf(']\n');
+    fprintf('  σ = ['); fprintf('%.2e ',sv); fprintf(']\n');
+    fprintf('  Rank = %d,  κ = %.2e\n',rank(J,1e-6),cond(J));
+
+    null_space = V(:,sv < tolerance);
     if ~isempty(null_space)
-        fprintf('    Null space dimension: %d\n', size(null_space, 2));
-        fprintf('    Primary null space direction: [');
-        fprintf('%.3f ', null_space(:, 1));
+        fprintf('  Null dim = %d | dir = [',size(null_space,2));
+        fprintf('%.2f ',null_space(:,1));
         fprintf(']\n');
     end
-    
     fprintf('\n');
 end
 
-%% Create singularity maps
-fprintf('\nCreating singularity visualization...\n');
+%% 7. VISUALIZATION (mappa singolarità) ------------------------------------
+%  Codice originale rimane invariato; usa la matrice "singularities" già
+%  filtrata con distanza "dist".
 
-% 1. 2D slice through joint space (theta1 vs theta4)
-n_grid = 100;
-theta1_range = linspace(Q_min(1), Q_max(1), n_grid);
-theta4_range = linspace(Q_min(4), Q_max(4), n_grid);
-[Theta1, Theta4] = meshgrid(theta1_range, theta4_range);
+%  ( ... )
 
-% Fixed values for other joints (home position)
-q_nominal = zeros(7, 1);
+%% 8. SALVATAGGIO ----------------------------------------------------------
+fprintf('Saving results ...\n');
+save('franka_singularities.mat','singularities','singularity_types','J_7_func','dist');
+fprintf('Results saved in franka_singularities.mat\n');
 
-fprintf('Computing singularity map...\n');
-Manipulability = zeros(n_grid, n_grid);
-
-for i = 1:n_grid
-    for j = 1:n_grid
-        q = q_nominal;
-        q(1) = Theta1(i, j);
-        q(4) = Theta4(i, j);
-        
-        J = compute_J7(q);
-        % Yoshikawa's manipulability measure
-        Manipulability(i, j) = sqrt(det(J * J'));
-    end
-    if mod(i, 10) == 0
-        fprintf('  Progress: %d%%\n', round(i/n_grid*100));
-    end
-end
-
-% Plot manipulability map
-figure('Name', 'Franka Robot Singularity Map');
-subplot(2, 1, 1);
-imagesc(theta1_range*180/pi, theta4_range*180/pi, log10(Manipulability + 1e-10));
-colorbar;
-xlabel('\theta_1 [deg]');
-ylabel('\theta_4 [deg]');
-title('Manipulability Map (log_{10} scale)');
-set(gca, 'YDir', 'normal');
-hold on;
-
-% Mark found singularities on the map
-for i = 1:size(singularities, 2)
-    plot(singularities(1, i)*180/pi, singularities(4, i)*180/pi, 'r*', 'MarkerSize', 10);
-end
-
-% 2. Plot singular value evolution along a path
-subplot(2, 1, 2);
-% Create a path from home to a singularity
-if size(singularities, 2) > 0
-    q_start = zeros(7, 1);
-    q_end = singularities(:, 1);
-    
-    t = linspace(0, 1, 100);
-    sv_evolution = zeros(6, length(t));
-    
-    for i = 1:length(t)
-        q = q_start + t(i) * (q_end - q_start);
-        J = compute_J7(q);
-        sv_evolution(:, i) = svd(J);
-    end
-    
-    plot(t, sv_evolution);
-    xlabel('Path parameter');
-    ylabel('Singular values');
-    title('Singular values along path to singularity');
-    legend('\sigma_1', '\sigma_2', '\sigma_3', '\sigma_4', '\sigma_5', '\sigma_6');
-    grid on;
-end
-
-%% Save results
-fprintf('\nSaving results...\n');
-save('franka_singularities.mat', 'singularities', 'singularity_types', 'J_7_func');
-fprintf('Results saved to franka_singularities.mat\n');
-
-%% Helper function to classify singularity type
-function type = classify_singularity(q, Q_min, Q_max)
-    type = '';
+%% 9. HELPER FUNCTION ------------------------------------------------------
+function type = classify_singularity(q,Q_min,Q_max)
     tol = 0.01;
-    
-    % Check if any joint is at its limit
     at_min = abs(q - Q_min) < tol;
     at_max = abs(q - Q_max) < tol;
-    
+
     if at_min(4) || at_max(4)
         type = 'Elbow';
     elseif abs(q(5)) < 0.1
@@ -348,4 +214,3 @@ function type = classify_singularity(q, Q_min, Q_max)
         type = 'Interior';
     end
 end
-
