@@ -1,0 +1,22 @@
+function dq = proj_grad_step(q, dr)
+    % J is the Jacobian of the constraint function r(q)
+    % dr is the change in r, which is a vector
+    % dt is the time step for the update
+
+    % q = q_old + dt * dq_old;
+    
+    J = get_J(q);   % <- numerica
+
+    pinv_J = pinv(J);
+    
+    % H_man = sqrt(det(J' * J)); % maximize distance from singularities
+    grad_H = num_diff(@(q) det(get_J(q)' * get_J(q)), q)'; % numerical gradient of H
+    
+    dq = grad_H + pinv_J * (dr - J * grad_H); % faster version
+
+end 
+
+
+
+
+

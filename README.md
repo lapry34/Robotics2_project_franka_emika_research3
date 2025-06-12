@@ -7,7 +7,7 @@ Projected and Reduced Gradient Project for Robotics 2 Course of Prof. De Luca, A
 
 ### Documentation
 - [Franka Emika Documentation](https://frankaemika.github.io/docs/)
-- [DH Parameters](https://frankaemika.github.io/docs/control_parameters.html#denavithartenberg-parameters)
+- [DH Parameters - Craig's Convention](https://frankaemika.github.io/docs/control_parameters.html#denavithartenberg-parameters)
 
 ### Papers
 - [Franka Emika Panda Singularities](https://arxiv.org/pdf/2211.02516)

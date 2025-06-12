@@ -14,7 +14,7 @@ syms d1 d3 d5 d_e real
 % a4 =0.0825; 
 % a5 =-0.0825;
 % a7 = 0.088;
-% d3 = 0.316; d5 = 0.384; d_e = 0.107;
+% d1= 0.333; d3 = 0.316; d5 = 0.384; d_e = 0.107;
 theta = [theta1, theta2, theta3, theta4, theta5, theta6, theta7]';
 
 a_i = [0; 0; 0; a4; a5; 0; a7; 0];
@@ -26,14 +26,14 @@ alpha_i = [0; -pi/2; pi/2; pi/2; -pi/2; pi/2; pi/2; 0];
 theta_i = [theta; 0];
 
 DH_table = [alpha_i, a_i, d_i, theta_i]
-T_ee = DHMatrix_Craig(DH_table);
-p_ee = affine_get_translation(T_ee);
+T_ee = DHMatrix_Craig(DH_table)
+p_ee = affine_get_translation(T_ee)
 R_0_7 = affine_get_R(T_ee);
 
 J_l = jacobian(p_ee, theta);
 N = 7;
 
-% z0 = [];
+
 Ja = [];
 for i=1:N
     A0i = DHMatrix_Craig(DH_table(1:i, :));
@@ -43,6 +43,9 @@ end
 
 J = [J_l;
      Ja];
+
+J = simplify_fatto_bene(J)
+pause;
 
 % J_s = subs(J, [theta2, theta3, theta5], [0, pi/2, pi/2]);
 % rank(J_s)
@@ -65,7 +68,7 @@ J = [J_l;
 % min_singular = s(end) % smallest singular value is the last one  % computes only the smallest singular value
 
 % geometric jacobian expressed in RF_i
-i = 7;
+
 R_0_i = R_0_7;
 R_i_0 = R_0_i';
 
@@ -137,6 +140,8 @@ end
 
 J_e_t = simplify_fatto_bene(J_e_t)
 
+pause
+
 J_e_t_11 = J_e_t(1:3, 1:4);
 J_e_t_21 = J_e_t(4:6, 1:4);
 J_e_t_22 = J_e_t(4:6, 5:7);
@@ -152,8 +157,8 @@ equations2 = analysis_singularities(J_e_t_22, false)
 % https://frankaemika.github.io/docs/control_parameters.html
 % limits-for-franka-research-3
 N = 7;
-Q_max = [2.8973, 1.7628, 2.8973, -0.0698, 2.8973, 3.7525, 2.8973]'; % [rad]
-Q_min = [-2.8973, -1.7628, -2.8973, -3.0718, -2.8973, -0.0175, -2.8973]'; % [rad]
+Q_max = [2.7437, 1.7837, 2.9007, -0.1518, 2.8065, 4.5169, 3.0159]'; % [rad]
+Q_min = [-2.7437, -1.7837, -2.9007, -3.0421, -2.8065, -0.5445, -3.0159]'; % [rad]
 Q_dot_max = [2.62, 2.62, 2.62, 2.62, 5.26, 4.18, 5.26]'; % [rad/s]
 Q_ddot_max = 10 * ones(1, N); % [rad/s^2]
 Q_dddot_max = 5000 * ones(1, N);
