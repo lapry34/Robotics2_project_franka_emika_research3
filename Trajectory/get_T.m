@@ -32,10 +32,6 @@ function T = get_T(q)
         
     ];
 
-    
-
-    % Evaluate the symbolic Jacobian at the numeric joint angles
-
     % check if q is symbolic
     if isnumeric(q)
         T = double(T_sym);

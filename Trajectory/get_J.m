@@ -1,13 +1,17 @@
-function J = get_J(q)
+function J = get_J(q, orientation)
     % get_J computes the Jacobian matrix J for a given symbolic expression J_sym
     % and a vector of joint angles q.
     %
     % Inputs:
     %   q     - vector of joint angles (numeric)
-    %
+    %   orientation - boolean flag to indicate if orientation should be included
     % Output:
     %   J     - numeric Jacobian matrix evaluated at q
 
+    
+    if nargin < 2
+        orientation = false; % default orientation
+    end
     
     % Ensure q is a column vector
     if isrow(q)
@@ -50,5 +54,16 @@ function J = get_J(q)
     else
         J = vpa(J_sym);
     end
+
+    if ~orientation
+        J = J(1:3,:); % Only keep the position part of the Jacobian
+        return;
+    end
+
+    phi = get_phi(get_R(q)); % get the orientation angles from the rotation matrix
+
+    E_inv = get_E_inv(phi); % get the inverse of the end-effector angle differentation transformation matrix
+
+    J = [eye(3), zeros(3,3); zeros(3,3), E_inv] * J; % Append the orientation part of the Jacobian
 
 end

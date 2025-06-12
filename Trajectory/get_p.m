@@ -1,6 +1,11 @@
-function p = get_p(q) 
+function p = get_p(q, orientation) 
     % get_p - Get the position vector from the joint configuration vector
     % q: joint configuration vector
+    % orientation: boolean flag to indicate if orientation angles should be included in the output
+
+    if nargin < 2
+        orientation = false; % default orientation
+    end
 
     % Ensure q is a column vector
     if isrow(q)
@@ -39,4 +44,14 @@ function p = get_p(q)
         p = vpa(p_ee_sym);
     end
     
+    if orientation
+        phi = get_phi(get_R(q)); % get the orientation angles from the rotation matrix
+        
+        if isnumeric(q)
+            p = [p; double(phi)]; % append the orientation angles to the position vector
+        else
+            p = [p; vpa(phi)]; % append the orientation angles to the position vector
+        end
+    end
+
 end

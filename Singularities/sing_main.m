@@ -3,8 +3,8 @@ clear
 digits 4
 
 % addpath("/Matlab_Scripts/Dynamics/") %no dynamics for now...
-addpath("../Matlab_Scripts/Redundancy/")
-addpath("../Matlab_Scripts/Robotics1/")
+addpath("./Matlab_Scripts/Redundancy/")
+addpath("./Matlab_Scripts/Robotics1/")
 
 % From https://frankaemika.github.io/docs
 syms theta1 theta2 theta3 theta4 theta5 theta6 theta7 real
@@ -28,7 +28,7 @@ theta_i = [theta; 0];
 DH_table = [alpha_i, a_i, d_i, theta_i]
 T_ee = DHMatrix_Craig(DH_table)
 p_ee = affine_get_translation(T_ee)
-R_0_7 = affine_get_R(T_ee);
+R_0_7 = affine_get_R(T_ee)
 
 J_l = jacobian(p_ee, theta);
 N = 7;

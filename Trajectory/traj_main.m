@@ -3,8 +3,8 @@ clear
 digits 4
 
 % addpath("/Matlab_Scripts/Dynamics/") %no dynamics for now...
-addpath("../Matlab_Scripts/Redundancy/")
-addpath("../Matlab_Scripts/Robotics1/")
+addpath("./Matlab_Scripts/Redundancy/")
+addpath("./Matlab_Scripts/Robotics1/")
 
 % From https://frankaemika.github.io/docs
 syms q1 q2 q3 q4 q5 q6 q7 real

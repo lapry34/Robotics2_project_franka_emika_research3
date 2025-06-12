@@ -5,7 +5,14 @@ function dq = proj_grad_step(q, dr)
 
     % q = q_old + dt * dq_old;
     
-    J = get_J(q);   % <- numerica
+    % check if dr has orientation angles
+    if length(dr) == 6
+        orientation = true;
+    else
+        orientation = false;
+    end
+
+    J = get_J(q, orientation);   % <- numerica
 
     pinv_J = pinv(J);
     
