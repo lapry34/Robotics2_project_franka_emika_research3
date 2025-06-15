@@ -1,7 +1,11 @@
-function q_i = num_IK(r, verbose)
+function q_i = num_IK(r, q_est, verbose)
+
+    if nargin < 3
+        verbose = false;  % Default to not verbose
+    end
 
     if nargin < 2
-        verbose = false;  % Default to not verbose
+        q_est = zeros(7, 1);  % Default initial guess for joint angles
     end
 
     % Gradient Descent parameters
@@ -10,7 +14,7 @@ function q_i = num_IK(r, verbose)
     max_iter = 30;
     found = false;
 
-    q_i = zeros(7,1);  % Initial guess for joint angles
+    q_i = q_est;  % Initial guess for joint angles
 
     % Newton's Method
     for j = 1:max_iter
