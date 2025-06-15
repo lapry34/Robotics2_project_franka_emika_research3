@@ -21,7 +21,7 @@ function ddq = proj_grad_step_acc(q, dq, ddr, p_d, dp_d)
     pinv_J = pinv(J);
     
     % H_man = sqrt(det(J * J')); % maximize distance from singularities  (6x7 * 7x6 = 6x6)
-    H_man = @(q) sqrt(det(get_J(q) * get_J(q)'));
+    H_man = @(q) sqrt(det(get_J(q, orientation) * get_J(q, orientation)'));
     %H_range = @(q) H_range_dist(q);
 
     H = H_man;
@@ -36,6 +36,7 @@ function ddq = proj_grad_step_acc(q, dq, ddr, p_d, dp_d)
     if nargin < 4  
         PD_control = 0;
     else
+        p = get_p(q, orientation); % end-effector position
         e = p_d - p; % error vector
         e_dot = dp_d - J * dq; % error derivative
         Kp = 5*eye(length(e)); % proportional gain matrix

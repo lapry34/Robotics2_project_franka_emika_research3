@@ -1,7 +1,6 @@
 clc
 clear all
 digits 4
-%intanto pusha negro
 addpath("./Matlab_Scripts/Redundancy/")
 addpath("./Matlab_Scripts/Robotics1/")
 addpath("./Trajectory/")
