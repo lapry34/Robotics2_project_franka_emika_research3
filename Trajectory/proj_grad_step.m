@@ -17,7 +17,7 @@ function dq = proj_grad_step(q, dr)
     pinv_J = pinv(J);
     
     % H_man = sqrt(det(J' * J)); % maximize distance from singularities
-    grad_H = num_diff(@(q) det(get_J(q)' * get_J(q)), q)'; % numerical gradient of H
+    grad_H = num_J(@(q) det(get_J(q)' * get_J(q)), q)'; % numerical gradient of H (transposed Jacobian of scalar function)
     
     dq = grad_H + pinv_J * (dr - J * grad_H); % faster version
 

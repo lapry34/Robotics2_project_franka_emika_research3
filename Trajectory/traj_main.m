@@ -63,6 +63,8 @@ fprintf("Chosen Singularity:\n p_s{2} = [%f, %f, %f]\n", p_s{2}(1), p_s{2}(2), p
 % disp("Minimum singular value: " + min_singular)
 
 q_start = num_IK([0, 0.287938, 0.895027]')
+
+J_dot = get_J_dot(q_start, q_start, true) % initial Jacobian time derivative
 pause;
 
 dt = 0.01; % time step
