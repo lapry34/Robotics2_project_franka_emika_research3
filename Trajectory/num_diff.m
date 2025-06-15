@@ -1,5 +1,5 @@
 % Define function to compute the numerical Jacobian
-function grad = num_J(f, x, delta)
+function grad = num_diff(f, x, delta)
 
     if nargin < 3
         delta = 1e-6;  % default step size for numerical differentiation

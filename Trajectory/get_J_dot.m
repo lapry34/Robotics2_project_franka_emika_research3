@@ -1,4 +1,4 @@
-function J_dot =get_J_dot(q, dq,orientation, delta)
+function J_dot = get_J_dot(q, dq,orientation, delta)
 %GET_J_DOT Numerically computes the time derivative of the Jacobian matrix J(q).
 %
 %   J_dot = GET_J_DOT(q, dq) returns the matrix time derivative J_dot given

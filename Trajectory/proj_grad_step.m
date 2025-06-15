@@ -1,4 +1,4 @@
-function dq = proj_grad_step(q, dr)
+function dq = proj_grad_step(q, dr, p_d)
     % J is the Jacobian of the constraint function r(q)
     % dr is the change in r, which is a vector
     % dt is the time step for the update
@@ -12,14 +12,32 @@ function dq = proj_grad_step(q, dr)
         orientation = false;
     end
 
-    J = get_J(q, orientation);   % <- numerica
+    if nargin < 3  
+        p_d = get_p(q, orientation); % default to current end-effector position
+    end
+
+    J = get_J(q, orientation);   % <- numerica  (3x7 o 6x7)
+
+    min_singular = svds(J, 1, 'smallest');
+
+    disp(['Minimum singular value of J: ', num2str(min_singular)]);
+
 
     pinv_J = pinv(J);
     
-    % H_man = sqrt(det(J' * J)); % maximize distance from singularities
-    grad_H = num_J(@(q) det(get_J(q)' * get_J(q)), q)'; % numerical gradient of H (transposed Jacobian of scalar function)
+    % H_man = sqrt(det(J * J')); % maximize distance from singularities  (6x7 * 7x6 = 6x6)
+    H_man = @(q) sqrt(det(get_J(q) * get_J(q)'));
+    grad_H = num_diff(H_man, q)'; % numerical gradient of H (transposed Jacobian of scalar function)
     
-    dq = grad_H + pinv_J * (dr - J * grad_H); % faster version
+    %disp('Gradient of H:');
+    %disp(grad_H);
+
+    p = get_p(q, orientation); % end-effector position
+    e = p_d - p; % error vector
+    Kp = 5*eye(length(e)); % proportional gain matrix
+    
+    %dq = pinv_J * (dr + Kp * e) + (eye(length(q)) - pinv_J * J) * grad_H;
+    dq = grad_H + pinv_J * (dr - J * grad_H + Kp*e); % faster version
 
 end 
 
