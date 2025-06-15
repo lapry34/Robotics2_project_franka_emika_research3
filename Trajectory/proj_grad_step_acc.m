@@ -1,4 +1,4 @@
-function dq = proj_grad_step(q, dr, p_d)
+function ddq = proj_grad_step_acc(q, dq, ddr, p_d, dp_d)
     % J is the Jacobian of the constraint function r(q)
     % dr is the change in r, which is a vector
     % dt is the time step for the update
@@ -12,12 +12,11 @@ function dq = proj_grad_step(q, dr, p_d)
         orientation = false;
     end
 
-    if nargin < 3  
-        p_d = get_p(q, orientation); % default to current end-effector position
-    end
 
     J = get_J(q, orientation);   % <- numerica  (3x7 o 6x7)
+    J_dot = get_J_dot(q, dq, orientation); % numerical Jacobian time derivative
 
+    x_ddot = ddr - J_dot * dq; % acceleration adjusted with J_dot
 
     pinv_J = pinv(J);
     
@@ -29,15 +28,23 @@ function dq = proj_grad_step(q, dr, p_d)
 
     grad_H = num_diff(H, q)'; % numerical gradient of H (transposed Jacobian of scalar function)
     
+    q0_dot = grad_H - 2 * dq; % damping term (can be adjusted)
+
     %disp('Gradient of H:');
     %disp(grad_H);
 
-    p = get_p(q, orientation); % end-effector position
-    e = p_d - p; % error vector
-    Kp = 5*eye(length(e)); % proportional gain matrix
-    
-    %dq = pinv_J * (dr + Kp * e) + (eye(length(q)) - pinv_J * J) * grad_H;
-    dq = grad_H + pinv_J * (dr - J * grad_H + Kp*e); % faster version
+    if nargin < 4  
+        PD_control = 0;
+    else
+        e = p_d - p; % error vector
+        e_dot = dp_d - J * dq; % error derivative
+        Kp = 5*eye(length(e)); % proportional gain matrix
+        Kd = 2*eye(length(e)); % derivative gain matrix
+        PD_control = Kp * e + Kd * e_dot; % PD control term
+    end
+
+
+    ddq = q0_dot + pinv_J * (x_ddot - J * q0_dot + PD_control); % faster version
 
 end 
 

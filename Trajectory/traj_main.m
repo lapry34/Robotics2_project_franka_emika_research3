@@ -37,8 +37,7 @@ P_dddot_max = [4500.0, 4500.0, 4500.0, 5000.0, 5000.0, 5000.0]'; % [m/s^3]x3 [ra
 
 
 
-% T = get_T([0,0,0,0,0,0,0]');
-% p = get_p([0,0,0,0,0,0,0]');
+
 
 % the singularity we are interest in is at s2 = 0, c3 = 0, c5 = 0 
 q_s = {};
@@ -53,70 +52,83 @@ q_s{4} = [pi/3, 0, -pi/2, -pi/3, -pi/2, pi/5, -pi/5]';
 p_s{4} = get_p(q_s{4});
 
 fprintf("Chosen Singularity:\n p_s{3} = [%f, %f, %f]\n", p_s{3}(1), p_s{3}(2), p_s{3}(3));
-% pause;
 
-% J_s = get_J(q_sing);
-% rank_J = rank(J_s)
-%s = svd(J_s);           % s is a vector of singular values sorted in descending order
-%min_singular = s(end) % smallest singular value is the last one
-% min_singular = svds(J_s, 1, 'smallest'); %computes only the smallest singular value
-% disp("Minimum singular value: " + min_singular)
+
 
 % Define dz (di quanto ci dobbiamo muovere in z)
 dz = 0.3; % [m]
 % singularity at -0.23, 0.28. 0.89
 p_start = p_s{3};
-p_start(3) = p_start(3) - dz/2
+p_start(3) = p_start(3) - dz/2;
 q_start = num_IK(p_start); % compute inverse kinematics for the start position
-q_start(1) = 0.0; % we fix an amount of error for the controller
-%check q_start
+
+% we set an amount of error for the controller to recover
+q_start(1) = 0.0; 
+q_start(2) = 0.0; 
 
 
 % Setting p_fin
-% p_fin = p_start + dr * T  % <- se dr è costante
 p_fin = p_s{3};
-p_fin(3) = p_fin(3) + dz/2
+p_fin(3) = p_fin(3) + dz/2;
 
 
-J_dot = get_J_dot(q_start, q_start, true); % initial Jacobian time derivative
+%J_dot = get_J_dot(q_start, q_start, true); % initial Jacobian time derivative
 
 t_in = 0;
 t_fin = 2.0;
 T = t_fin - t_in;
 
 % quintic rest-to-rest
-
-p_d = sym([0; 0; 0]);
-
 syms t_sym real
 tau = t_sym/T;
-for i = 1:3
-    dp_i = p_fin(i) - p_start(i);
-    % if v_in=v_fin=a_in=a_fin=0, then...
-    p_d(i) = p_start(i) + dp_i * (6 * tau^5 - 15 * tau^4 + 10 * tau^3);
-end
 
-p_d_sym = p_d;
-dr_sym = diff(p_d_sym, t_sym)
-%q_old =  [pi/3, pi/3, pi/3, -pi/3, -pi/3, pi/5, -pi/5]';
-
+delta_p = p_fin - p_start; % change in position
+p_d_sym = p_start + delta_p * (6 * tau^5 - 15 * tau^4 + 10 * tau^3); % quintic polynomial
+dr_sym = diff(p_d_sym, t_sym);
+ddr_sym = diff(dr_sym, t_sym); % first and second derivatives
 
 q_list = []; % to store joint positions
 p_list = []; % to store end-effector positions
+error_list = []; % to store error norms
+qA_idx = [1, 4, 6]; % indices of joints in A for Reduced Gradient Step (nonsingular joints)
+qB_idx = [2, 3, 5, 7]; % indices of joints in B for Reduced Gradient Step
 
 dt = 0.01; % time step
 t = 0.0;
 q = q_start; % initialize joint position
 dq_old = zeros(N, 1); % initial joint velocity
+ddq_old = zeros(N, 1); % initial joint acceleration
 q_dot = zeros(N, 1); % initialize joint velocity
+q_ddot = zeros(N, 1); % initialize joint acceleration
+
+disp("Simulation values...");
+disp(['Start position: p_start = [', num2str(p_start'), ']']);
+disp(['Singularity position: p_sing = [', num2str(p_s{3}'), ']']);
+disp(['End position: p_fin = [', num2str(p_fin'), ']']);
+disp(['Start joint angles: q_start = [', num2str(q_start'), ']']);
+disp(['Time step: dt = ', num2str(dt), ' s']);
+disp(['Total simulation time: t_fin = ', num2str(t_fin), ' s']);
+
+
+
+disp("Press enter to start the simulation...");
+pause; % wait for user input to start the simulation
 
 while t < t_fin % run for a fixed time
 
     %dq = saturate(dq, Q_dot_max); % saturate joint velocity
     %dq = saturate(dq, Q_ddot_max, dq_old); % saturate joint acceleration
 
+    p_nom = double(subs(p_d_sym, t_sym, t)); % expected end-effector position at time t
+    q_nom = num_IK(p_nom); % compute inverse kinematics for the expected end-effector position
+    
+
     p = get_p(q); % compute current end-effector position
     J = get_J(q);
+
+    min_singular = svds(J, 1, 'smallest');
+    disp(['Minimum singular value of J: ', num2str(min_singular)]);
+
     v_ee = J * q_dot;
     dr = double(subs(dr_sym, t_sym, t));
     error = dr - v_ee;
@@ -128,16 +140,21 @@ while t < t_fin % run for a fixed time
     disp(['norm error = ', num2str(norm_e)]);
     % p = [-0.35603      0.2033      1.0844]
 
+    error_list = [error_list, norm_e]; % store error norm for plotting later
     q_list = [q_list, q]; % store joint position
     p_list = [p_list, p]; % store end-effector position
     
     % TODO: r_dot dovrebbe essere in funzione di t. quinid questa va modificata
     
-    p_d = subs(p_d_sym, t_sym, t); % expected end-effector position at time t
 
-    q_dot = proj_grad_step(q, dr, p_d); % compute joint velocity using projected gradient step
+    %q_dot = reduced_grad_step(q, dr, p_nom, qA_idx, qB_idx); % compute joint velocity using reduced gradient step
+    q_dot = proj_grad_step(q, dr, p_nom); % compute joint velocity using projected gradient step
     %J_pinv = pinv(J); % compute pseudo-inverse of Jacobian
     %q_dot = J_pinv * dr;
+
+    disp(['q_dot = [', num2str(q_dot'), ']']);
+    
+
     q = q + q_dot * dt; % update joint position
     t = t + dt; % update time 
 end
@@ -147,6 +164,38 @@ q_sing = q_s{3};
 
 fin_err = p_fin - p;
 fprintf("Norm of final error: %.4f", norm(fin_err))
+
+
+
+% plot joint over time
+disp("Simulation finished. Plotting results...");
+
+figure;
+
+% Plot end-effector position over time
+subplot(2, 1, 1);
+hold on;
+time = 0:dt:t_fin-dt;
+plot(time, p_list(1, :), 'b', 'DisplayName', 'Real Position (X)');
+plot(time, double(subs(p_d_sym(1), t_sym, time)), 'r--', 'DisplayName', 'Nominal Position (X)');
+plot(time, p_list(2, :), 'g', 'DisplayName', 'Real Position (Y)');
+plot(time, double(subs(p_d_sym(2), t_sym, time)), 'm--', 'DisplayName', 'Nominal Position (Y)');
+plot(time, p_list(3, :), 'c', 'DisplayName', 'Real Position (Z)');
+plot(time, double(subs(p_d_sym(3), t_sym, time)), 'k--', 'DisplayName', 'Nominal Position (Z)');
+xlabel('Time (s)');
+ylabel('Position (m)');
+title('End-Effector Position Over Time (X, Y, Z)');
+legend;
+grid on;
+
+% Plot norm of the error over time
+subplot(2, 1, 2);
+plot(0:dt:t_fin-dt, error_list, 'y', 'DisplayName', 'Norm of Error');
+xlabel('Time (s)');
+ylabel('Error Norm (m)');
+title('Norm of End-Effector Position Error Over Time');
+legend;
+grid on;
 
 
 % Plot joint positions
