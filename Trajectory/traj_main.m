@@ -1,5 +1,5 @@
-clc;
-clear all;
+clc
+clear all
 digits 4
 
 % addpath("/Matlab_Scripts/Dynamics/") %no dynamics for now...
@@ -62,29 +62,44 @@ fprintf("Chosen Singularity:\n p_s{3} = [%f, %f, %f]\n", p_s{3}(1), p_s{3}(2), p
 % min_singular = svds(J_s, 1, 'smallest'); %computes only the smallest singular value
 % disp("Minimum singular value: " + min_singular)
 
+% Define dz (di quanto ci dobbiamo muovere in z)
+dz = 0.3; % [m]
 % singularity at -0.23, 0.28. 0.89
 p_start = p_s{3};
-p_start(3) = 0.7; % set z-coordinate to 0 for the start position
+p_start(3) = p_start(3) - dz/2
 q_start = num_IK(p_start); % compute inverse kinematics for the start position
 q_start(1) = 0.0; % we fix an amount of error for the controller
 %check q_start
 
+
+% Setting p_fin
+% p_fin = p_start + dr * T  % <- se dr è costante
+p_fin = p_s{3};
+p_fin(3) = p_fin(3) + dz/2
+
+
 J_dot = get_J_dot(q_start, q_start, true); % initial Jacobian time derivative
-pause;
-
-
-dr = [0; 0; 0.2];
-dq_old = zeros(N, 1); % initial joint velocity
-%q_old =  [pi/3, pi/3, pi/3, -pi/3, -pi/3, pi/5, -pi/5]';
 
 t_in = 0;
 t_fin = 2.0;
 T = t_fin - t_in;
-p_fin = p_start + dr * T
 
-% q = q_old + dt * dq_old
-% J = get_J(q)
-% pinv_J = pinv(J)
+% quintic rest-to-rest
+
+p_d = sym([0; 0; 0]);
+
+syms t_sym real
+tau = t_sym/T;
+for i = 1:3
+    dp_i = p_fin(i) - p_start(i);
+    % if v_in=v_fin=a_in=a_fin=0, then...
+    p_d(i) = p_start(i) + dp_i * (6 * tau^5 - 15 * tau^4 + 10 * tau^3);
+end
+
+p_d_sym = p_d;
+dr_sym = diff(p_d_sym, t_sym)
+%q_old =  [pi/3, pi/3, pi/3, -pi/3, -pi/3, pi/5, -pi/5]';
+
 
 q_list = []; % to store joint positions
 p_list = []; % to store end-effector positions
@@ -92,22 +107,21 @@ p_list = []; % to store end-effector positions
 dt = 0.01; % time step
 t = 0.0;
 q = q_start; % initialize joint position
-
+dq_old = zeros(N, 1); % initial joint velocity
 q_dot = zeros(N, 1); % initialize joint velocity
+
 while t < t_fin % run for a fixed time
 
     %dq = saturate(dq, Q_dot_max); % saturate joint velocity
     %dq = saturate(dq, Q_ddot_max, dq_old); % saturate joint acceleration
 
-    p = get_p(q); % compute end-effector position
-    
+    p = get_p(q); % compute current end-effector position
     J = get_J(q);
-
     v_ee = J * q_dot;
+    dr = double(subs(dr_sym, t_sym, t));
     error = dr - v_ee;
-    norm_e = norm(error);
+    norm_e = double(norm(error));
     detJJtrans = det(J*J');
-  
     disp (['t = ', num2str(t), ' s, p = [', num2str(p'), '] v_ee = [', num2str(v_ee'), ']']);
     disp( ['q = [', num2str(q'), ']']);
     fprintf("det(J*J') = %.4f\n", detJJtrans);
@@ -118,14 +132,14 @@ while t < t_fin % run for a fixed time
     p_list = [p_list, p]; % store end-effector position
     
     % TODO: r_dot dovrebbe essere in funzione di t. quinid questa va modificata
-    r_expected = p_start + dr * t; % expected end-effector position at time t
+    
+    p_d = subs(p_d_sym, t_sym, t); % expected end-effector position at time t
 
-    q_dot = proj_grad_step(q, dr, r_expected); % compute joint velocity using projected gradient step
+    q_dot = proj_grad_step(q, dr, p_d); % compute joint velocity using projected gradient step
     %J_pinv = pinv(J); % compute pseudo-inverse of Jacobian
     %q_dot = J_pinv * dr;
     q = q + q_dot * dt; % update joint position
-    t = t + dt; % update time
-    
+    t = t + dt; % update time 
 end
 
 p_sing = p_s{3};
@@ -160,7 +174,7 @@ legend('q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7');
 
 
 % After computing p_start and p_fin, add this in the plotting section:
-figure;
+figure
 plot3(p_list(1, :), p_list(2, :), p_list(3, :));
 hold on;
 plot3([p_start(1) p_fin(1)], [p_start(2) p_fin(2)], [p_start(3) p_fin(3)], 'g--');
