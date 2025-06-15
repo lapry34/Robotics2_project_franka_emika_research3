@@ -7,7 +7,7 @@ addpath("./Trajectory/")
 
 % GLOBALS
 N = 7; % number of joints
-T = 3; % total time for the trajectory [s]
+T = 7; % total time for the trajectory [s]
 
 
 % LIMITS (from Docs)
@@ -49,16 +49,24 @@ p_start(3) = p_start(3) - dz/2;
 % Setting p_end
 p_end = p_sing;
 p_end(3) = p_end(3) + dz/2;
-%ORIENTATION
 
 
-
+         
 % DEFINING ERROR
 q_start = num_IK(p_start); % compute inverse kinematics for the start position
 % we set an amount of error for the controller to recover
-%q_start(1) = q_start(1)/2; 
-%q_start(2) = q_start(2)/2;
+q_start(1) = q_start(1)/2; 
+q_start(2) = q_start(2)/2;
 
+%ORIENTATION
+R_start = get_R(q_start); % initial orientation in rotation matrix
+R_end = get_R(num_IK(p_end)); % final orientation in rotation matrix
+
+phi_start = get_phi(R_start); % initial orientation in Euler angles
+phi_end = get_phi(R_end); % final orientation in Euler angles
+
+r_start = [p_start; phi_start]; % initial state vector
+r_end = [p_end; phi_start]; % final state vector
 
 
 t_in = 0; % initial time [s]
@@ -68,14 +76,14 @@ t_fin = t_in + T; % final time [s]
 syms t_sym real
 tau = t_sym/T;
 
-delta_p = p_end - p_start; % change in position
-p_d_sym = p_start + delta_p * (6 * tau^5 - 15 * tau^4 + 10 * tau^3); % quintic polynomial
-dp_sym = diff(p_d_sym, t_sym);
-ddp_sym = diff(dp_sym, t_sym); % first and second derivatives
+delta_r = r_end - r_start; % change in position
+r_d_sym = r_start + delta_r * (6 * tau^5 - 15 * tau^4 + 10 * tau^3); % quintic polynomial
+dr_sym = diff(r_d_sym, t_sym);
+ddr_sym = diff(dr_sym, t_sym); % first and second derivatives
 
 q_list = []; % to store joint positions
 dq_list = []; % to store joint velocities
-p_list = []; % to store end-effector positions
+r_list = []; % to store end-effector positions
 error_list = []; % to store error norms
 
 
@@ -89,7 +97,7 @@ t_sing = 0;
 disp("Simulation values...");
 disp(['Start position: p_start = [', num2str(p_start'), ']']);
 disp(['Singularity position: p_sing = [', num2str(p_sing'), ']']);
-disp(['End position: p_end = [', num2str(p_end'), ']']);
+disp(['End position: r_end = [', num2str(r_end'), ']']);
 disp(['Start joint angles: q_start = [', num2str(q_start'), ']']);
 disp(['Time step: dt = ', num2str(dt), ' s']);
 disp(['Total simulation time: t_fin = ', num2str(t_fin), ' s']);
@@ -99,22 +107,22 @@ pause; % wait for user input to start the simulation
 while t < t_fin % run for a fixed time
 
     % Nominal Trajectory
-    p_nom = double(subs(p_d_sym, t_sym, t)); % expected end-effector position at time t
-    dp_nom = double(subs(dp_sym, t_sym, t)); 
-    q_nom = num_IK(p_nom, q); % compute inverse kinematics for the expected end-effector position
+    r_nom = double(subs(r_d_sym, t_sym, t)); % expected end-effector position at time t
+    dr_nom = double(subs(dr_sym, t_sym, t)); 
+    q_nom = num_IK(r_nom, q); % compute inverse kinematics for the expected end-effector position
     
     % LOGGING errors and pos
-        p = get_p(q); % compute current end-effector position
-        J = get_J(q);
+        r = get_p(q, true); % compute current end-effector position
+        J = get_J(q, true);
 
         min_singular = svds(J, 1, 'smallest');
         disp(['Minimum singular value of J: ', num2str(min_singular)]);
 
-        dp = J * dq;
-        error = dp_nom - dp;
+        dr = J * dq;
+        error = dr_nom - dr;
         norm_e = double(norm(error));
         detJJtrans = det(J*J');
-        disp (['t = ', num2str(t), ' s, p = [', num2str(p'), '] dp = [', num2str(dp'), ']']);
+        disp (['t = ', num2str(t), ' s, r = [', num2str(r'), '] dr = [', num2str(dr'), ']']);
         disp( ['q = [', num2str(q'), ']']);
         fprintf("det(J*J') = %.4f\n", detJJtrans);
         disp(['norm error = ', num2str(norm_e)]);
@@ -122,10 +130,10 @@ while t < t_fin % run for a fixed time
         error_list = [error_list, norm_e]; % store error norm for plotting later
         q_list = [q_list, q]; % store joint position
         dq_list = [dq_list, dq]; % store joint velocity
-        p_list = [p_list, p]; % store end-effector position
+        r_list = [r_list, r]; % store end-effector position
     
     % [!] PG step
-    dq = proj_grad_step(q, dp_nom, p_nom); % compute joint velocity using projected gradient step
+    dq = proj_grad_step(q, dr_nom, r_nom); % compute joint velocity using projected gradient step
     disp(['dq = [', num2str(dq'), ']']);
 
     % CHECK Limits
@@ -136,7 +144,7 @@ while t < t_fin % run for a fixed time
     q = clamp_vec(q, LIM_q_min, LIM_q_max); % clamp joint position to limits
 
     % if we are near the singularity, we want to save the time in t_sing
-    if norm(p-p_sing) < 0.01 % if we are within 0.1 rad of the singularity
+    if norm(r(1:3)-p_sing) < 0.01 % if we are within 0.1 rad of the singularity
             t_sing = t; % save the time
             fprintf("Near singularity at t = %.2f s\n", t_sing);
     end
@@ -145,7 +153,7 @@ while t < t_fin % run for a fixed time
 end
 
 
-fin_err = p_end - p;
+fin_err = r_end - r;
 fprintf("Norm of final error: %.4f\n", norm(fin_err))
 
 
@@ -156,7 +164,7 @@ disp("Simulation finished. Plotting results...");
 figure;
 
 % Plot end-effector position over time
-subplot(2, 1, 1);
+subplot(3, 1, 1);
 hold on;
 % time = 0:dt:t_fin-dt;
 if T > 2
@@ -166,20 +174,37 @@ else
 end
 
 
-plot(time, p_list(1, :), 'b', 'DisplayName', 'Real Position (X)');
-plot(time, double(subs(p_d_sym(1), t_sym, time)), 'r--', 'DisplayName', 'Nominal Position (X)');
-plot(time, p_list(2, :), 'g', 'DisplayName', 'Real Position (Y)');
-plot(time, double(subs(p_d_sym(2), t_sym, time)), 'm--', 'DisplayName', 'Nominal Position (Y)');
-plot(time, p_list(3, :), 'c', 'DisplayName', 'Real Position (Z)');
-plot(time, double(subs(p_d_sym(3), t_sym, time)), 'k--', 'DisplayName', 'Nominal Position (Z)');
+plot(time, r_list(1, :), 'b', 'DisplayName', 'Real Position (X)');
+plot(time, double(subs(r_d_sym(1), t_sym, time)), 'r--', 'DisplayName', 'Nominal Position (X)');
+plot(time, r_list(2, :), 'g', 'DisplayName', 'Real Position (Y)');
+plot(time, double(subs(r_d_sym(2), t_sym, time)), 'm--', 'DisplayName', 'Nominal Position (Y)');
+plot(time, r_list(3, :), 'c', 'DisplayName', 'Real Position (Z)');
+plot(time, double(subs(r_d_sym(3), t_sym, time)), 'k--', 'DisplayName', 'Nominal Position (Z)');
 xlabel('Time (s)');
 ylabel('Position (m)');
 title('End-Effector Position Over Time (X, Y, Z)');
 legend;
 grid on;
 
+% Add Euler angles (phi_x, phi_y, phi_z) to the second subplot
+subplot(3, 1, 2);
+hold on;
+plot(time, r_list(4, :), 'b', 'DisplayName', 'Real Euler Angle (X)');
+plot(time, double(subs(r_d_sym(4), t_sym, time)), 'c--', 'DisplayName', 'Nominal Euler Angle (X)');
+plot(time, r_list(5, :), 'g', 'DisplayName', 'Real Euler Angle (Y)');
+plot(time, double(subs(r_d_sym(5), t_sym, time)), 'y--', 'DisplayName', 'Nominal Euler Angle (Y)');
+plot(time, r_list(6, :), 'm', 'DisplayName', 'Real Euler Angle (Z)');
+plot(time, double(subs(r_d_sym(6), t_sym, time)), 'r--', 'DisplayName', 'Nominal Euler Angle (Z)');
+yline(pi/2, '--', 'Color', [1, 0.5, 0], 'DisplayName', '\phi_y = \pi/2', 'LabelHorizontalAlignment', 'left', 'LabelVerticalAlignment', 'middle', 'HandleVisibility', 'off');
+yline(-pi/2, '--', 'Color', [1, 0.5, 0], 'DisplayName', '\phi_y = -\pi/2', 'LabelHorizontalAlignment', 'left', 'LabelVerticalAlignment', 'middle', 'HandleVisibility', 'off');
+xlabel('Time (s)');
+ylabel('Euler Angles (rad)');
+title('End-Effector Orientation Over Time (Euler Angles X, Y, Z)');
+legend;
+grid on;
+
 % Plot norm of the error over time
-subplot(2, 1, 2);
+subplot(3, 1, 3);
 plot(time, error_list, 'g', 'DisplayName', 'Norm of Error');
 xlabel('Time (s)');
 ylabel('Error Norm (m)');
@@ -246,9 +271,9 @@ end
 
 % After computing p_start and p_end, add this in the plotting section:
 figure
-plot3(p_list(1, :), p_list(2, :), p_list(3, :));
+plot3(r_list(1, :), r_list(2, :), r_list(3, :));
 hold on;
-plot3([p_start(1) p_end(1)], [p_start(2) p_end(2)], [p_start(3) p_end(3)], 'g--');
+plot3([r_start(1) r_end(1)], [r_start(2) r_end(2)], [r_start(3) r_end(3)], 'g--');
 xlabel('X Position (m)');
 ylabel('Y Position (m)');
 zlabel('Z Position (m)');

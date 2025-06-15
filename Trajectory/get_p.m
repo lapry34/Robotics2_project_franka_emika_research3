@@ -45,7 +45,7 @@ function p = get_p(q, orientation)
     end
     
     if orientation
-        phi = get_phi(q); % get the orientation angles from the rotation matrix
+        phi = get_phi(get_R(q)); % get the orientation angles from the rotation matrix
         
         if isnumeric(q)
             p = [p; double(phi)]; % append the orientation angles to the position vector

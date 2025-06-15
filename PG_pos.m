@@ -55,9 +55,8 @@ p_end(3) = p_end(3) + dz/2;
 % DEFINING ERROR
 q_start = num_IK(p_start); % compute inverse kinematics for the start position
 % we set an amount of error for the controller to recover
-%q_start(1) = q_start(1)/2; 
-%q_start(2) = q_start(2)/2;
-
+q_start(1) = q_start(1)/2; 
+q_start(2) = q_start(2)/2;
 
 
 t_in = 0; % initial time [s]

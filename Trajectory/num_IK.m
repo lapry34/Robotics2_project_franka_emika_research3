@@ -16,10 +16,16 @@ function q_i = num_IK(r, q_est, verbose)
 
     q_i = q_est;  % Initial guess for joint angles
 
+    if length(r) == 3
+        orientation = false;  % If only position is given, do not consider orientation
+    else
+        orientation = true;  % If orientation is included, set flag to true
+    end
+
     % Newton's Method
     for j = 1:max_iter
         
-        error = r - get_p(q_i);
+        error = r - get_p(q_i, orientation);  % Compute the error between desired position and current position
         if norm(error) < tol
             if verbose
                 fprintf('Newton Method converged in %d iterations\n', j);
@@ -28,8 +34,7 @@ function q_i = num_IK(r, q_est, verbose)
             break;
         end
 
-        J_curr = get_J(q_i);  % Compute the Jacobian at the current joint angles
-        J_curr = J_curr(1:3, :);  % Use only the first three rows for position control
+        J_curr = get_J(q_i, orientation);  % Compute the Jacobian at the current joint angles
 
         min_singular = svds(J_curr, 1, 'smallest');
 

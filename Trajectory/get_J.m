@@ -60,7 +60,7 @@ function J = get_J(q, orientation)
         return;
     end
 
-    phi = get_phi(q); % get the orientation angles from the rotation matrix
+    phi = get_phi(get_R(q)); % get the orientation angles from the rotation matrix
 
     E_inv = get_E_inv(phi); % get the inverse of the end-effector angle differentation transformation matrix
 

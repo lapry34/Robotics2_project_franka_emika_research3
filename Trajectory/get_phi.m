@@ -1,6 +1,4 @@
-function phi = get_phi(q)
-
-        R = get_R(q);
+function phi = get_phi(R)
 
         % we convert the rotation matrix to a XYZ Euler angles (phi1, phi2, phi3) [also known as Cardan angles]
         % determinant of R_xyz_euler = 1;
