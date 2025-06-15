@@ -31,7 +31,7 @@ function q_i = num_IK(r, verbose)
 
         if min_singular > 1e-8 && min_singular < 1e-4 
             
-            q_i = q_i + alpha * J_curr' * error;  % Gradient descent step
+            q_i = q_i + alpha * J_curr' * error;  % Gradient descent step (Armijo can be added here)
             
             if verbose
                 fprintf('Using gradient descent update: min singular value = %f\n', min_singular);
