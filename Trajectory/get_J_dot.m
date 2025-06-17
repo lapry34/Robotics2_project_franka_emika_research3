@@ -1,24 +1,13 @@
-function J_dot = get_J_dot(q, dq,orientation, delta)
+function J_dot = get_J_dot(q, dq, orientation, delta)
 %GET_J_DOT Numerically computes the time derivative of the Jacobian matrix J(q).
 %
-%   J_dot = GET_J_DOT(q, dq) returns the matrix time derivative J_dot given
-%   the joint positions q and joint velocities dq. The Jacobian J(q) must be
-%   provided by a function handle GET_J that takes q and returns the Jacobian.
-%
-%   J_dot = GET_J_DOT(q, dq, delta) allows specification of the finite
-%   difference step size DELTA (default 1e-6).
-%
-%   The method uses central finite differences:
-%       dJ/dq_k \approx [J(q + \delta e_k) - J(q - \delta e_k)] / (2\delta)
-%   and then applies the chain rule:
-%       J\dot = \sum_k (dJ/dq_k) * dq_k
-%
+% ...existing code...
 
-    if nargin < 4 || isempty(delta)
-        delta = 1e-6; % default finite difference step size
+    if nargin < 4
+        delta = 1e-6; % Default perturbation for numerical differentiation
     end
-    if nargin < 3 || isempty(orientation)
-        orientation = false; % default to not considering orientation
+    if nargin < 3
+        orientation = false; % Default to not considering orientation
     end
 
     % Ensure q is a column vector

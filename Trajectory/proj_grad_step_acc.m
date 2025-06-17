@@ -6,12 +6,11 @@ function ddq = proj_grad_step_acc(q, dq, ddr, p_d, dp_d)
     % q = q_old + dt * dq_old;
     
     % check if dr has orientation angles
-    if length(dr) == 6
+    if length(ddr) == 6
         orientation = true;
     else
         orientation = false;
     end
-
 
     J = get_J(q, orientation);   % <- numerica  (3x7 o 6x7)
     J_dot = get_J_dot(q, dq, orientation); % numerical Jacobian time derivative
@@ -28,10 +27,8 @@ function ddq = proj_grad_step_acc(q, dq, ddr, p_d, dp_d)
 
     grad_H = num_diff(H, q)'; % numerical gradient of H (transposed Jacobian of scalar function)
     
-    q0_dot = grad_H - 2 * dq; % damping term (can be adjusted)
+    q0_ddot = grad_H - 2 * dq; % damping term (can be adjusted)
 
-    %disp('Gradient of H:');
-    %disp(grad_H);
 
     if nargin < 4  
         PD_control = 0;
@@ -39,13 +36,13 @@ function ddq = proj_grad_step_acc(q, dq, ddr, p_d, dp_d)
         p = get_p(q, orientation); % end-effector position
         e = p_d - p; % error vector
         e_dot = dp_d - J * dq; % error derivative
-        Kp = 5*eye(length(e)); % proportional gain matrix
-        Kd = 2*eye(length(e)); % derivative gain matrix
+        Kp = 10*eye(length(e)); % proportional gain matrix
+        Kd = 5*eye(length(e)); % derivative gain matrix
         PD_control = Kp * e + Kd * e_dot; % PD control term
     end
 
 
-    ddq = q0_dot + pinv_J * (x_ddot - J * q0_dot + PD_control); % faster version
+    ddq = q0_ddot + pinv_J * (x_ddot - J * q0_ddot + PD_control); % faster version
 
 end 
 
