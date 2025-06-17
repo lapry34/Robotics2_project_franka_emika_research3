@@ -7,7 +7,7 @@ addpath("./Trajectory/")
 
 % GLOBALS
 N = 7; % number of joints
-T = 3; % total time for the trajectory [s]
+T = 10; % total time for the trajectory [s]
 
 
 % LIMITS (from Docs)
@@ -76,6 +76,10 @@ dq_list = []; % to store joint velocities
 p_list = []; % to store end-effector positions
 error_list = []; % to store error norms
 
+ms_a_list = []; % to store minimum singular values of J_a
+
+qA_idx = [2,4,5]; % indices of joints in A (nonsingular)
+qB_idx = [1, 3, 6, 7]; % indices of joints in B (N-M = 4)
 
 dt = 0.01; % time step
 t = 0.0;
@@ -105,16 +109,17 @@ while t < t_fin % run for a fixed time
         p = get_p(q); % compute current end-effector position
         J = get_J(q);
 
-        min_singular = svds(J, 1, 'smallest');
-        disp(['Minimum singular value of J: ', num2str(min_singular)]);
+        J_a = J(:, qA_idx); % (3x7 o 6x7) -> (3xN_a o 6xN_a) where N_a = length(qA_idx)
+
+        ms_a = svds(J_a, 1, 'smallest');
+        disp(['Minimum singular value of J_a: ', num2str(ms_a)]);
+        ms_a_list = [ms_a_list, ms_a]; % store minimum singular value for plotting later
 
         dp = J * dq;
-        error = dp_nom - dp;
+        error = p_nom - p;
         norm_e = double(norm(error));
-        detJJtrans = det(J*J');
         disp (['t = ', num2str(t), ' s, p = [', num2str(p'), '] dp = [', num2str(dp'), ']']);
         disp( ['q = [', num2str(q'), ']']);
-        fprintf("det(J*J') = %.4f\n", detJJtrans);
         disp(['norm error = ', num2str(norm_e)]);
 
         error_list = [error_list, norm_e]; % store error norm for plotting later
@@ -122,16 +127,16 @@ while t < t_fin % run for a fixed time
         dq_list = [dq_list, dq]; % store joint velocity
         p_list = [p_list, p]; % store end-effector position
     
-    % [!] PG step
-    dq = proj_grad_step(q, dp_nom, p_nom); % compute joint velocity using projected gradient step
+    % [!] RG step
+    dq = reduced_grad_step(q, dp_nom, qA_idx, qB_idx, p_nom); % compute joint velocity using reduced gradient step
     disp(['dq = [', num2str(dq'), ']']);
 
     % CHECK Limits
-    dq = clamp_vec(dq, -LIM_dq_max, LIM_dq_max); % clamp joint velocity to max limits
+    %dq = clamp_vec(dq, -LIM_dq_max, LIM_dq_max); % clamp joint velocity to max limits
     disp(['Clamped dq = [', num2str(dq'), ']']);
 
     q = q + dq * dt; % update joint position
-    q = clamp_vec(q, LIM_q_min, LIM_q_max); % clamp joint position to limits
+    %q = clamp_vec(q, LIM_q_min, LIM_q_max); % clamp joint position to limits
 
     % if we are near the singularity, we want to save the time in t_sing
     if norm(p-p_sing) < 0.01 % if we are within 0.1 rad of the singularity
@@ -150,6 +155,15 @@ fprintf("Norm of final error: %.4f\n", norm(fin_err))
 
 % plot joint over time
 disp("Simulation finished. Plotting results...");
+
+figure;
+% plot svd of J_a over time
+plot(ms_a_list, 'b', 'DisplayName', 'Minimum Singular Value of J_a');
+xlabel('Time Step');
+ylabel('Minimum Singular Value');
+title('Minimum Singular Value of J_a Over Time');
+grid on;
+legend;
 
 figure;
 

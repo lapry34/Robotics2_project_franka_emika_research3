@@ -1,4 +1,4 @@
-function dq = reduced_grad_step(q, dr, p_d, qA_idx, qB_idx)
+function dq = reduced_grad_step(q, dr, qA_idx, qB_idx, p_d)
     % J is the Jacobian of the constraint function r(q)
     % dr is the change in r, which is a vector
     % dt is the time step for the update
@@ -19,18 +19,21 @@ function dq = reduced_grad_step(q, dr, p_d, qA_idx, qB_idx)
     J = get_J(q, orientation);   % <- numerica  (3x7 o 6x7)
 
     [M, N] = size(J); % M = 3 or 6, N = 7 (number of joints)
+    Id = eye(N-M); % identity matrix of size (M-N)x(M-N)
+
+    disp("J: ");
+    disp(J);
 
     J_a = J(:, qA_idx); % (3x7 o 6x7) -> (3xN_a o 6xN_a) where N_a = length(qA_idx)
     J_b = J(:, qB_idx); % (3x7 o 6x7) -> (3xN_b o 6xN_b) where N_b = length(qB_idx)
 
+    disp("J_a: ");
+    disp(J_a);
+    disp("J_b: ");
+    disp(J_b);
 
-    id = eye(N - M); % identity matrix of size (N-M)x(N-M)
-    J_a_inv = inv(J_a);
-
-    J_inv = [J_a_inv; zeros(N - M, size(J_a_inv, 1))]; % (N x N_a)
-
-    F = [-J_a_inv * J_b; id]; % (N x N) matrix
-    FF = F * F'; % (N x N) matrix
+    J_a_inv = pinv(J_a); % (N_a x M) matrix, where N_a = length(qA_idx), M = 3 or 6
+    %J_a_inv = DLS(J_a); % damped least squares inverse of J_a
 
     % H_man = sqrt(det(J * J')); % maximize distance from singularities  (6x7 * 7x6 = 6x6)
     H_man = @(q) sqrt(det(get_J(q) * get_J(q)'));
@@ -39,25 +42,23 @@ function dq = reduced_grad_step(q, dr, p_d, qA_idx, qB_idx)
     H = H_man;
 
     grad_H = num_diff(H, q)'; % numerical gradient of H (transposed Jacobian of scalar function)
-    
-  
+
+    F = [-(J_a_inv * J_b)', Id]; % (N x N) matrix for reduced gradient step
+    grad_H_b_prime = F * grad_H; % (N x 1) gradient of H with respect to qB modified for RG.
+
 
     p = get_p(q, orientation); % end-effector position
     e = p_d - p; % error vector
-    Kp = 5*eye(length(e)); % proportional gain matrix
+    Kp = 2*eye(length(e)); % proportional gain matrix
 
-    dq = J_inv * (dr + Kp * e) + FF * grad_H; % compute joint velocity update
-    % Reorder dq to match the original order of q
-    dq_full = zeros(N, 1); % initialize full joint velocity vector
+    dq_b = grad_H_b_prime;
+    dq_a = J_a_inv * (dr -J_b*dq_b + Kp*e); % joint velocities for A (N_a x 1)
 
-    for i = 1:length(qA_idx)
-        dq_full(qA_idx(i)) = dq(i); % assign values for A joints
-    end
-    for i = 1:length(qB_idx)
-        dq_full(qB_idx(i)) = dq(length(qA_idx) + i); % assign values for B joints
-    end
+    dq = zeros(N, 1); % initialize full joint velocity vector
+    dq(qA_idx) = dq_a; % assign joint velocities for A
+    dq(qB_idx) = dq_b; % assign joint velocities for B
 
-    dq = dq_full; % return the full joint velocity vector
+    %dq_full = pinv(J) * (dr + Kp * e);
 end 
 
 
