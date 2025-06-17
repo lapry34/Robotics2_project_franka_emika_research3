@@ -67,11 +67,11 @@ R_fin = get_R(q_fin);
 
 % Compute the initial and final XYZ Euler orientation
 seq_rot = 'XYZ';
-Phi_in = euler_rotation_inverse(seq_rot , R_in, 'pos');
-Phi_fin = euler_rotation_inverse(seq_rot , R_fin, 'pos');
+phi_in = get_phi(R_in); % initial orientation angles
+phi_fin = get_phi(R_fin); % final orientation angles
 
-r_in = [p_in; Phi_in];
-r_fin = [p_fin; Phi_fin];
+r_in = [p_in; phi_in];
+r_fin = [p_fin; phi_fin];
 
 
 %% DEFINING DESIRED TRAJECTORY 
@@ -85,7 +85,6 @@ tau = t_sym/T;
 delta_r = r_fin - r_in;
 r_d_sym = vpa(r_in + delta_r * (6 * tau^5 - 15 * tau^4 + 10 * tau^3)); % quintic polynomial
 r_dot_sym = diff(r_d_sym, t_sym);  % firt der
-ddp_sym = diff(r_d_sym, t_sym, 2); % second der
 
 %% DEFINING INITIAL JOINT CONFIGURATION
 % Adding some ERROR
@@ -96,6 +95,7 @@ q_in(2) = q_in(2)/2;
 % Init of useful list
 q_list = []; % to store joint positions
 dq_list = []; % to store joint velocities
+phi_list = []; % to store orientation angles
 p_list = []; % to store end-effector positions
 error_list = []; % to store error norms
  
@@ -127,10 +127,11 @@ while t < t_fin % run for a fixed time
     % LOGGING errors and pos
     p = get_p(q, true); % compute current end-effector pose
     J = get_J(q, true);
+    phi = get_phi(get_R(q)); % get the orientation angles from the rotation matrix
  
     r_dot = J * q_dot;
 %     error = r_dot_nom - r_dot;
-    error = r_d_nom(1:3) - p(1:3);    % position error
+    error = r_d_nom - p;    % position error
     norm_e = double(norm(error));
     detJJtrans = det(J*J');
     
@@ -147,7 +148,7 @@ while t < t_fin % run for a fixed time
     q_list = [q_list, q]; % store joint position
     dq_list = [dq_list, q_dot]; % store joint velocity
     p_list = [p_list, p]; % store end-effector position
-    
+    phi_list = [phi_list, phi]; % store orientation angles
     % [!] PG step
     q_dot = proj_grad_step(q, r_dot_nom, r_d_nom); % compute joint velocity using projected gradient step
     q_dot = double(q_dot);
@@ -233,16 +234,22 @@ grid on;
 legend('q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7');
 %%
 
-% Add a vertical line at t = 0.97
-%hold on;
-%
-
-% Add dotted lines at q = [-0.092246, 0.3226, -0.067663, -0.11786, -0.077494, 0.56935, 0]
-%q_target = [-0.092246, 0.3226, -0.067663, -0.11786, -0.077494, 0.56935, 0];
-%for i = 1:length(q_target)
-%    yline(q_target(i), '--', ['q', num2str(i), ' = ', num2str(q_target(i))], ...
-%        'LabelHorizontalAlignment', 'left', 'LabelVerticalAlignment', 'middle');
-%end
+%plot euler angles (one plot for each angle, singulariy at +- pi/2 on phi2)
+figure;
+for i = 1:3
+    subplot(3, 1, i);
+    plot(time, phi_list(i, :), 'b', 'DisplayName', ['Phi', num2str(i)]);
+    hold on;
+    if i == 2 % singularity at phi2 = +- pi/2
+        yline(pi/2, 'r--', 'DisplayName', ['Phi', num2str(i), ' Max']);
+        yline(-pi/2, 'g--', 'DisplayName', ['Phi', num2str(i), ' Min']);
+    end
+    xlabel('Time (s)');
+    ylabel(['Phi', num2str(i), ' (rad)']);
+    title(['Orientation Angle Phi', num2str(i), ' Over Time']);
+    grid on;
+    legend;
+end
 
 % plot joint velocities with bounds for each joint
 figure;

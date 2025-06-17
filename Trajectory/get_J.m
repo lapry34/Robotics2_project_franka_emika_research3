@@ -45,30 +45,23 @@ function J = get_J(q, orientation)
     ];
 
     
-    R = get_R(q);  % compute current end-effector position
-    Phi = euler_rotation_inverse('XYZ' , R, 'pos');  % Compute the current XYZ Euler orientation
-
-    alpha = Phi(1);
-    beta = Phi(2);
-
-    T = vpa([sym(1), sym(0), sin(beta);
-    sym(0), cos(alpha), -cos(beta)*sin(alpha);
-    sym(0), sin(alpha), cos(alpha)*cos(beta)]);
-
-    I = eye(3,3);
-    A = blkdiag(I, inv(T));
-    J = A * J_sym;
-
-    % check if q is symbolic
-    if isnumeric(q)
-        J = double(J_sym);
-    else
-        J = vpa(J_sym);
-    end
 
     if ~orientation
-        J = J(1:3,:); % Only keep the position part of the Jacobian
+        J = J_sym(1:3,:); % Only keep the position part of the Jacobian
         return;
+    end
+
+    phi = get_phi(get_R(q)); % get the orientation angles from the rotation matrix
+    E = get_E(phi); % get the differential angle vector from the orientation angles
+    E_inv = inv(E); % Inverse of the differential angle vector
+
+
+    J = blkdiag(eye(3,3), E_inv) * J_sym; % Append the orientation part of the Jacobian
+
+    if isnumeric(q)
+        J = double(J);
+    else 
+        J = vpa(J);
     end
 
 end
