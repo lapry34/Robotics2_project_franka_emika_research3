@@ -4,7 +4,7 @@ function dq = proj_grad_step(q, dr, p_d)
     % dt is the time step for the update
 
     % q = q_old + dt * dq_old;
-    
+   
     % check if dr has orientation angles
     if length(dr) == 6
         orientation = true;
@@ -38,10 +38,4 @@ function dq = proj_grad_step(q, dr, p_d)
     
     %dq = pinv_J * (dr + Kp * e) + (eye(length(q)) - pinv_J * J) * grad_H;
     dq = grad_H + pinv_J * (dr - J * grad_H + Kp*e); % faster version
-
 end 
-
-
-
-
-

@@ -1,16 +1,16 @@
 clc
-clear all
+clear
+close all
 digits 4
 addpath("./Matlab_Scripts/Redundancy/")
 addpath("./Matlab_Scripts/Robotics1/")
 addpath("./Trajectory/")
 
-% GLOBALS
+%% GLOBALS
 N = 7; % number of joints
-T = 7; % total time for the trajectory [s]
+T = 3; % total time for the trajectory [s]
 
-
-% LIMITS (from Docs)
+%% LIMITS (from Docs)
 LIM_q_max       = [2.7437, 1.7837, 2.9007, -0.1518, 2.8065, 4.5169, 3.0159]'; % [rad]
 LIM_q_min       = [-2.7437, -1.7837, -2.9007, -3.0421, -2.8065, -0.5445, -3.0159]'; % [rad]
 LIM_dq_max      = [2.62, 2.62, 2.62, 2.62, 5.26, 4.18, 5.26]'; % [rad/s]
@@ -20,8 +20,7 @@ LIM_dp_max      = [3.0, 3.0, 3.0, 2.5, 2.5, 2.5]'; % [m/s]x3 [rad/s]x3
 LIM_ddp_max     = [9.0, 9.0, 9.0, 17, 17, 17]'; % [m/s^2]x3 [rad/s^2]x3
 LIM_dddp_max    = [4500.0, 4500.0, 4500.0, 5000.0, 5000.0, 5000.0]'; % [m/s^3]x3 [rad/s^3]x3
 
-
-% CHOSEN SINGULARITY: s2 = 0, c3 = 0, c5 = 0 
+%% CHOSEN SINGULARITY: s2 = 0, c3 = 0, c5 = 0 
 % (other joints are set to random values)
 q_s = {};
 p_s = {};
@@ -36,39 +35,46 @@ p_s{4} = get_p(q_s{4});
 
 p_sing = p_s{3};
 q_sing = q_s{3};
+% fprintf("Before Clamping:\n q_s = [%f, %f, %f, %f, %f, %f, %f]\n", q_sing(1), q_sing(2), q_sing(3), q_sing(4), q_sing(5), q_sing(6), q_sing(7));
+% q_sing = clamp_vec(q_sing, LIM_q_min, LIM_q_max); % clamp to limits
+% fprintf("After Clamping:\n q_s = [%f, %f, %f, %f, %f, %f, %f]\n", q_sing(1), q_sing(2), q_sing(3), q_sing(4), q_sing(5), q_sing(6), q_sing(7));
+% pause;
 
-% DEFINING TRAJECTORY 
-
-%POSITION
-% Define dz (di quanto ci dobbiamo muovere in z)
+%% DEFINING INITIAL AND FINAL POSE
+% Define the variation of displacement in each direction
+dx = 0.0; % [m]
+dy = 0.0; % [m]
 dz = 0.2; % [m]
+delta = [dx; dy; dz];
+
 % singularity at -0.23, 0.28. 0.89
-p_start = p_sing;
-p_start(3) = p_start(3) - dz/2;
+p_in = p_sing;
+p_in = p_in - delta/2;
 
-% Setting p_end
-p_end = p_sing;
-p_end(3) = p_end(3) + dz/2;
+% Setting p_d_end (desired)
+p_fin = p_sing;
+p_fin = p_fin + delta/2;
+
+% Compute inverse kinematics for the initial and final position
+% TODO: forse dobbiamo cambiare questo. In realtà le rotazioni inizali e
+% finali le scelgiamo noi.
+
+q_in = num_IK(p_in(1:3)); 
+q_fin = num_IK(p_fin(1:3));
+
+R_in = get_R(q_in);
+R_fin = get_R(q_fin);
+
+% Compute the initial and final XYZ Euler orientation
+seq_rot = 'XYZ';
+Phi_in = euler_rotation_inverse(seq_rot , R_in, 'pos');
+Phi_fin = euler_rotation_inverse(seq_rot , R_fin, 'pos');
+
+r_in = [p_in; Phi_in];
+r_fin = [p_fin; Phi_fin];
 
 
-         
-% DEFINING ERROR
-q_start = num_IK(p_start); % compute inverse kinematics for the start position
-% we set an amount of error for the controller to recover
-q_start(1) = q_start(1)/2; 
-q_start(2) = q_start(2)/2;
-
-%ORIENTATION
-R_start = get_R(q_start); % initial orientation in rotation matrix
-R_end = get_R(num_IK(p_end)); % final orientation in rotation matrix
-
-phi_start = get_phi(R_start); % initial orientation in Euler angles
-phi_end = get_phi(R_end); % final orientation in Euler angles
-
-r_start = [p_start; phi_start]; % initial state vector
-r_end = [p_end; phi_start]; % final state vector
-
-
+%% DEFINING DESIRED TRAJECTORY 
 t_in = 0; % initial time [s]
 t_fin = t_in + T; % final time [s]
 
@@ -76,135 +82,138 @@ t_fin = t_in + T; % final time [s]
 syms t_sym real
 tau = t_sym/T;
 
-delta_r = r_end - r_start; % change in position
-r_d_sym = r_start + delta_r * (6 * tau^5 - 15 * tau^4 + 10 * tau^3); % quintic polynomial
-dr_sym = diff(r_d_sym, t_sym);
-ddr_sym = diff(dr_sym, t_sym); % first and second derivatives
+delta_r = r_fin - r_in;
+r_d_sym = vpa(r_in + delta_r * (6 * tau^5 - 15 * tau^4 + 10 * tau^3)); % quintic polynomial
+r_dot_sym = diff(r_d_sym, t_sym);  % firt der
+ddp_sym = diff(r_d_sym, t_sym, 2); % second der
 
+%% DEFINING INITIAL JOINT CONFIGURATION
+% Adding some ERROR
+% we set an amount of error for the controller to recover
+q_in(1) = q_in(1)/2; 
+q_in(2) = q_in(2)/2;
+%% PROJECTED GRADIENT
+% Init of useful list
 q_list = []; % to store joint positions
 dq_list = []; % to store joint velocities
-r_list = []; % to store end-effector positions
+p_list = []; % to store end-effector positions
 error_list = []; % to store error norms
-
-
+ 
 dt = 0.01; % time step
 t = 0.0;
-q = q_start; % initialize joint position
-dq = zeros(N, 1); % initialize joint velocity
+q = q_in; % initialize joint position
+q_dot = zeros(N, 1); % initialize joint velocity
 
 t_sing = 0;
 
 disp("Simulation values...");
-disp(['Start position: p_start = [', num2str(p_start'), ']']);
+disp(['Start position: p_in = [', num2str(p_in'), ']']);
 disp(['Singularity position: p_sing = [', num2str(p_sing'), ']']);
-disp(['End position: r_end = [', num2str(r_end'), ']']);
-disp(['Start joint angles: q_start = [', num2str(q_start'), ']']);
+disp(['End position: p_fin = [', num2str(p_fin'), ']']);
+disp(['Start joint angles: q_start = [', num2str(q_in'), ']']);
 disp(['Time step: dt = ', num2str(dt), ' s']);
 disp(['Total simulation time: t_fin = ', num2str(t_fin), ' s']);
+
 disp("Press enter to start the simulation...");
 pause; % wait for user input to start the simulation
 
+print_info = false;
 while t < t_fin % run for a fixed time
 
     % Nominal Trajectory
-    r_nom = double(subs(r_d_sym, t_sym, t)); % expected end-effector position at time t
-    dr_nom = double(subs(dr_sym, t_sym, t)); 
-    q_nom = num_IK(r_nom, q); % compute inverse kinematics for the expected end-effector position
-    
-    % LOGGING errors and pos
-        r = get_p(q, true); % compute current end-effector position
-        J = get_J(q, true);
+    r_d_nom = double(subs(r_d_sym, t_sym, t)); % expected end-effector pose at time t
+    r_dot_nom = double(subs(r_dot_sym, t_sym, t)); 
 
+    % LOGGING errors and pos
+    p = get_p(q, true); % compute current end-effector pose
+    J = get_J(q, true);
+ 
+    r_dot = J * q_dot;
+%     error = r_dot_nom - r_dot;
+    error = r_d_nom(1:3) - p(1:3);    % position error
+    norm_e = double(norm(error));
+    detJJtrans = det(J*J');
+    
+    if print_info == true
         min_singular = svds(J, 1, 'smallest');
         disp(['Minimum singular value of J: ', num2str(min_singular)]);
-
-        dr = J * dq;
-        error = dr_nom - dr;
-        norm_e = double(norm(error));
-        detJJtrans = det(J*J');
-        disp (['t = ', num2str(t), ' s, r = [', num2str(r'), '] dr = [', num2str(dr'), ']']);
+        disp (['t = ', num2str(t), ' s, p = [', num2str(p'), '] p_dot = [', num2str(r_dot'), ']']);
         disp( ['q = [', num2str(q'), ']']);
         fprintf("det(J*J') = %.4f\n", detJJtrans);
         disp(['norm error = ', num2str(norm_e)]);
+    end
 
-        error_list = [error_list, norm_e]; % store error norm for plotting later
-        q_list = [q_list, q]; % store joint position
-        dq_list = [dq_list, dq]; % store joint velocity
-        r_list = [r_list, r]; % store end-effector position
+    error_list = [error_list, norm_e]; % store error norm for plotting later
+    q_list = [q_list, q]; % store joint position
+    dq_list = [dq_list, q_dot]; % store joint velocity
+    p_list = [p_list, p]; % store end-effector position
     
     % [!] PG step
-    dq = proj_grad_step(q, dr_nom, r_nom); % compute joint velocity using projected gradient step
-    disp(['dq = [', num2str(dq'), ']']);
+    q_dot = proj_grad_step(q, r_dot_nom, r_d_nom); % compute joint velocity using projected gradient step
+    q_dot = double(q_dot);
+
+    if print_info == true
+        disp(['q_dot = [', num2str(q_dot'), ']']);
+    end
 
     % CHECK Limits
-    dq = clamp_vec(dq, -LIM_dq_max, LIM_dq_max); % clamp joint velocity to max limits
-    disp(['Clamped dq = [', num2str(dq'), ']']);
+%     q_dot = clamp_vec(q_dot, -LIM_dq_max, LIM_dq_max); % clamp joint velocity to max limits
+%     if print_info == true
+%         disp(['Clamped dq = [', num2str(q_dot'), ']']);
+%     end
 
-    q = q + dq * dt; % update joint position
-    q = clamp_vec(q, LIM_q_min, LIM_q_max); % clamp joint position to limits
+    q = q + q_dot * dt; % update joint position
+ 
+%     q = clamp_vec(q, LIM_q_min, LIM_q_max); % clamp joint position to limits
+
 
     % if we are near the singularity, we want to save the time in t_sing
-    if norm(r(1:3)-p_sing) < 0.01 % if we are within 0.1 rad of the singularity
+    if norm(p(1:3) - p_sing) < 0.01 % if we are within 0.1 rad of the singularity
             t_sing = t; % save the time
-            fprintf("Near singularity at t = %.2f s\n", t_sing);
+            if print_info==true
+                fprintf("Near singularity at t = %.2f s\n", t_sing);
+            end
     end
 
     t = t + dt; % update time 
 end
 
-
-fin_err = r_end - r;
+fin_err = p_fin - p(1:3);
 fprintf("Norm of final error: %.4f\n", norm(fin_err))
 
-
-
+%% PLOT OF THE RESULTS
 % plot joint over time
 disp("Simulation finished. Plotting results...");
 
 figure;
 
 % Plot end-effector position over time
-subplot(3, 1, 1);
+subplot(2, 1, 1);
 hold on;
+
 % time = 0:dt:t_fin-dt;
-if T > 2
-    time = 0:dt:t_fin; % time vector for plotting
-else
-    time = 0:dt:t_fin-dt; % time vector for plotting
-end
+% if T > 2
+%     time = 0:dt:t_fin; % time vector for plotting
+% else
+%     time = 0:dt:t_fin-dt; % time vector for plotting
+% end
+time = 0:dt:t_fin;
 
 
-plot(time, r_list(1, :), 'b', 'DisplayName', 'Real Position (X)');
+plot(time, p_list(1, :), 'b', 'DisplayName', 'Real Position (X)');
 plot(time, double(subs(r_d_sym(1), t_sym, time)), 'r--', 'DisplayName', 'Nominal Position (X)');
-plot(time, r_list(2, :), 'g', 'DisplayName', 'Real Position (Y)');
+plot(time, p_list(2, :), 'g', 'DisplayName', 'Real Position (Y)');
 plot(time, double(subs(r_d_sym(2), t_sym, time)), 'm--', 'DisplayName', 'Nominal Position (Y)');
-plot(time, r_list(3, :), 'c', 'DisplayName', 'Real Position (Z)');
+plot(time, p_list(3, :), 'c', 'DisplayName', 'Real Position (Z)');
 plot(time, double(subs(r_d_sym(3), t_sym, time)), 'k--', 'DisplayName', 'Nominal Position (Z)');
 xlabel('Time (s)');
 ylabel('Position (m)');
 title('End-Effector Position Over Time (X, Y, Z)');
 legend;
 grid on;
-
-% Add Euler angles (phi_x, phi_y, phi_z) to the second subplot
-subplot(3, 1, 2);
-hold on;
-plot(time, r_list(4, :), 'b', 'DisplayName', 'Real Euler Angle (X)');
-plot(time, double(subs(r_d_sym(4), t_sym, time)), 'c--', 'DisplayName', 'Nominal Euler Angle (X)');
-plot(time, r_list(5, :), 'g', 'DisplayName', 'Real Euler Angle (Y)');
-plot(time, double(subs(r_d_sym(5), t_sym, time)), 'y--', 'DisplayName', 'Nominal Euler Angle (Y)');
-plot(time, r_list(6, :), 'm', 'DisplayName', 'Real Euler Angle (Z)');
-plot(time, double(subs(r_d_sym(6), t_sym, time)), 'r--', 'DisplayName', 'Nominal Euler Angle (Z)');
-yline(pi/2, '--', 'Color', [1, 0.5, 0], 'DisplayName', '\phi_y = \pi/2', 'LabelHorizontalAlignment', 'left', 'LabelVerticalAlignment', 'middle', 'HandleVisibility', 'off');
-yline(-pi/2, '--', 'Color', [1, 0.5, 0], 'DisplayName', '\phi_y = -\pi/2', 'LabelHorizontalAlignment', 'left', 'LabelVerticalAlignment', 'middle', 'HandleVisibility', 'off');
-xlabel('Time (s)');
-ylabel('Euler Angles (rad)');
-title('End-Effector Orientation Over Time (Euler Angles X, Y, Z)');
-legend;
-grid on;
-
+%%
 % Plot norm of the error over time
-subplot(3, 1, 3);
+subplot(2, 1, 2);
 plot(time, error_list, 'g', 'DisplayName', 'Norm of Error');
 xlabel('Time (s)');
 ylabel('Error Norm (m)');
@@ -212,8 +221,7 @@ title('Norm of End-Effector Position Error Over Time');
 xline(t_sing, '--r', 'Singularity Crossing', 'LabelHorizontalAlignment', 'left', 'LabelVerticalAlignment', 'middle', 'HandleVisibility', 'off');
 legend;
 grid on;
-
-
+%%
 % Plot joint positions
 figure;
 plot(time, q_list);
@@ -223,6 +231,7 @@ title('Joint Angles Over Time');
 % Add grid and legend
 grid on;
 legend('q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7');
+%%
 
 % Add a vertical line at t = 0.97
 %hold on;
@@ -249,7 +258,7 @@ for i = 1:N
     grid on;
     legend;
 end
-
+%%
 % plot joint positions with bounds for each joint
 figure;
 for i = 1:N
@@ -265,27 +274,25 @@ for i = 1:N
     legend;
 end
 
+%%
 
-
-
-
-% After computing p_start and p_end, add this in the plotting section:
+% After computing p_in and p_fin, add this in the plotting section:
 figure
-plot3(r_list(1, :), r_list(2, :), r_list(3, :));
+plot3(p_list(1, :), p_list(2, :), p_list(3, :));
 hold on;
-plot3([r_start(1) r_end(1)], [r_start(2) r_end(2)], [r_start(3) r_end(3)], 'g--');
+plot3([p_in(1) p_fin(1)], [p_in(2) p_fin(2)], [p_in(3) p_fin(3)], 'g--');
 xlabel('X Position (m)');
 ylabel('Y Position (m)');
 zlabel('Z Position (m)');
 title('End-Effector Position Over Time');
 scatter3(p_sing(1), p_sing(2), p_sing(3), 50, 'filled', 'MarkerFaceColor', 'k'); % Singularity point in red
-scatter3(p_start(1), p_start(2), p_start(3), 10, 'filled', 'MarkerFaceColor', 'g'); % Start point in green
-scatter3(p_end(1), p_end(2), p_end(3), 10, 'filled', 'MarkerFaceColor', 'b'); % End point in blue
+scatter3(p_in(1), p_in(2), p_in(3), 10, 'filled', 'MarkerFaceColor', 'g'); % Start point in green
+scatter3(p_fin(1), p_fin(2), p_fin(3), 10, 'filled', 'MarkerFaceColor', 'b'); % End point in blue
 legend('End-Effector Path', 'Start to End Path', 'Singularity Point', 'Start Point', 'End Point');
 
 dx = 0.5;
 
-xlim([p_start(1) - dx, p_start(1) + dx])
-ylim([p_start(2) - dx, p_start(2) + dx])
-zlim([p_start(3) - dx, p_start(3) + dx])
+xlim([p_in(1) - dx, p_in(1) + dx])
+ylim([p_in(2) - dx, p_in(2) + dx])
+zlim([p_in(3) - dx, p_in(3) + dx])
 grid on;

@@ -28,7 +28,6 @@ function p = get_p(q, orientation)
     q6 = q(6);
     % q7 = q(7);
 
-
     p_ee_sym = [
             a7*(sin(q6)*(sin(q4)*(sin(q1)*sin(q3) - cos(q1)*cos(q2)*cos(q3)) + cos(q1)*cos(q4)*sin(q2)) - cos(q6)*(cos(q5)*(cos(q4)*(sin(q1)*sin(q3) - cos(q1)*cos(q2)*cos(q3)) - cos(q1)*sin(q2)*sin(q4)) + sin(q5)*(cos(q3)*sin(q1) + cos(q1)*cos(q2)*sin(q3)))) - d_e*(cos(q6)*(sin(q4)*(sin(q1)*sin(q3) - cos(q1)*cos(q2)*cos(q3)) + cos(q1)*cos(q4)*sin(q2)) + sin(q6)*(cos(q5)*(cos(q4)*(sin(q1)*sin(q3) - cos(q1)*cos(q2)*cos(q3)) - cos(q1)*sin(q2)*sin(q4)) + sin(q5)*(cos(q3)*sin(q1) + cos(q1)*cos(q2)*sin(q3)))) - a4*(sin(q1)*sin(q3) - cos(q1)*cos(q2)*cos(q3)) - a5*(cos(q4)*(sin(q1)*sin(q3) - cos(q1)*cos(q2)*cos(q3)) - cos(q1)*sin(q2)*sin(q4)) + d5*(sin(q4)*(sin(q1)*sin(q3) - cos(q1)*cos(q2)*cos(q3)) + cos(q1)*cos(q4)*sin(q2)) + d3*cos(q1)*sin(q2);
             a4*(cos(q1)*sin(q3) + cos(q2)*cos(q3)*sin(q1)) - a7*(sin(q6)*(sin(q4)*(cos(q1)*sin(q3) + cos(q2)*cos(q3)*sin(q1)) - cos(q4)*sin(q1)*sin(q2)) - cos(q6)*(cos(q5)*(cos(q4)*(cos(q1)*sin(q3) + cos(q2)*cos(q3)*sin(q1)) + sin(q1)*sin(q2)*sin(q4)) + sin(q5)*(cos(q1)*cos(q3) - cos(q2)*sin(q1)*sin(q3)))) + d_e*(cos(q6)*(sin(q4)*(cos(q1)*sin(q3) + cos(q2)*cos(q3)*sin(q1)) - cos(q4)*sin(q1)*sin(q2)) + sin(q6)*(cos(q5)*(cos(q4)*(cos(q1)*sin(q3) + cos(q2)*cos(q3)*sin(q1)) + sin(q1)*sin(q2)*sin(q4)) + sin(q5)*(cos(q1)*cos(q3) - cos(q2)*sin(q1)*sin(q3)))) + a5*(cos(q4)*(cos(q1)*sin(q3) + cos(q2)*cos(q3)*sin(q1)) + sin(q1)*sin(q2)*sin(q4)) - d5*(sin(q4)*(cos(q1)*sin(q3) + cos(q2)*cos(q3)*sin(q1)) - cos(q4)*sin(q1)*sin(q2)) + d3*sin(q1)*sin(q2);
@@ -45,12 +44,14 @@ function p = get_p(q, orientation)
     end
     
     if orientation
-        phi = get_phi(get_R(q)); % get the orientation angles from the rotation matrix
-        
+        R = get_R(q);  % compute current end-effector position
+        seq_rot = 'XYZ';
+        Phi = euler_rotation_inverse(seq_rot , R, 'pos');  % Compute the current XYZ Euler orientation
+
         if isnumeric(q)
-            p = [p; double(phi)]; % append the orientation angles to the position vector
+            p = [p; double(Phi)]; % append the orientation angles to the position vector
         else
-            p = [p; vpa(phi)]; % append the orientation angles to the position vector
+            p = [p; vpa(Phi)]; % append the orientation angles to the position vector
         end
     end
 
