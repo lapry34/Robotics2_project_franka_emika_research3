@@ -131,7 +131,7 @@ while t < t_fin % run for a fixed time
  
     r_dot = J * q_dot;
 %     error = r_dot_nom - r_dot;
-    error = r_d_nom - p;    % position error
+    error = r_d_nom(1:3) - p(1:3);    % position error
     norm_e = double(norm(error));
     detJJtrans = det(J*J');
     
@@ -238,14 +238,15 @@ legend('q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7');
 figure;
 for i = 1:3
     subplot(3, 1, i);
-    plot(time, phi_list(i, :), 'b', 'DisplayName', ['Phi', num2str(i)]);
+    plot(time, rad2deg(phi_list(i, :)), 'b', 'DisplayName', ['Real Phi', num2str(i)]);
     hold on;
+    plot(time, rad2deg(double(subs(r_d_sym(i + 3), t_sym, time))), 'r--', 'DisplayName', ['Nominal Phi', num2str(i)]);
     if i == 2 % singularity at phi2 = +- pi/2
-        yline(pi/2, 'r--', 'DisplayName', ['Phi', num2str(i), ' Max']);
-        yline(-pi/2, 'g--', 'DisplayName', ['Phi', num2str(i), ' Min']);
+        yline(rad2deg(pi/2), 'r--', 'DisplayName', ['Phi', num2str(i), ' Max']);
+        yline(rad2deg(-pi/2), 'g--', 'DisplayName', ['Phi', num2str(i), ' Min']);
     end
     xlabel('Time (s)');
-    ylabel(['Phi', num2str(i), ' (rad)']);
+    ylabel(['Phi', num2str(i), ' (deg)']);
     title(['Orientation Angle Phi', num2str(i), ' Over Time']);
     grid on;
     legend;
