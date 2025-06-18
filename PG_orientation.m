@@ -59,8 +59,8 @@ p_fin = p_fin + delta/2;
 % TODO: forse dobbiamo cambiare questo. In realtà le rotazioni inizali e
 % finali le scelgiamo noi.
 
-q_in = num_IK(p_in(1:3)); 
-q_fin = num_IK(p_fin(1:3));
+q_in = num_IK_retry(p_in(1:3)); 
+q_fin = num_IK_retry(p_fin(1:3));
 
 R_in = get_R(q_in);
 R_fin = get_R(q_fin);
@@ -158,14 +158,14 @@ while t < t_fin % run for a fixed time
     end
 
     % CHECK Limits
-%     q_dot = clamp_vec(q_dot, -LIM_dq_max, LIM_dq_max); % clamp joint velocity to max limits
-%     if print_info == true
-%         disp(['Clamped dq = [', num2str(q_dot'), ']']);
-%     end
+    q_dot = clamp_vec(q_dot, -LIM_dq_max, LIM_dq_max); % clamp joint velocity to max limits
+    if print_info == true
+        disp(['Clamped dq = [', num2str(q_dot'), ']']);
+    end
 
     q = q + q_dot * dt; % update joint position
  
-%     q = clamp_vec(q, LIM_q_min, LIM_q_max); % clamp joint position to limits
+    q = clamp_vec(q, LIM_q_min, LIM_q_max); % clamp joint position to limits
 
 
     % if we are near the singularity, we want to save the time in t_sing

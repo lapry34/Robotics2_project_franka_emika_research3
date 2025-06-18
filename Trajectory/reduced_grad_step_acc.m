@@ -42,7 +42,8 @@ function ddq = reduced_grad_step_acc(q, dq, ddr, qA_idx, qB_idx, p_d, dp_d)
 
     grad_H = num_diff(H, q)'; % numerical gradient of H (transposed Jacobian of scalar function)
 
-    grad_H = grad_H - 2 * dq; % damping term (can be adjusted)
+    damp = 2; % damping factor
+    grad_H = grad_H - damp * dq; % damping term (can be adjusted)
 
     F = [-(J_a_inv * J_b)', Id]; % (N x N) matrix for reduced gradient step
     grad_H_b_prime = F * grad_H; % (N x 1) gradient of H with respect to qB modified for RG.

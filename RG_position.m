@@ -7,7 +7,7 @@ addpath("./Trajectory/")
 
 % GLOBALS
 N = 7; % number of joints
-T = 10; % total time for the trajectory [s]
+T = 3; % total time for the trajectory [s]
 
 
 % LIMITS (from Docs)
@@ -53,7 +53,7 @@ p_end = p_sing;
 p_end(3) = p_end(3) + dz/2;
 
 % DEFINING ERROR
-q_start = num_IK(p_start); % compute inverse kinematics for the start position
+q_start = num_IK_retry(p_start); % compute inverse kinematics for the start position
 % we set an amount of error for the controller to recover
 q_start(1) = q_start(1)/2; 
 q_start(2) = q_start(2)/2;
@@ -103,7 +103,6 @@ while t < t_fin % run for a fixed time
     % Nominal Trajectory
     p_nom = double(subs(p_d_sym, t_sym, t)); % expected end-effector position at time t
     dp_nom = double(subs(dp_sym, t_sym, t)); 
-    q_nom = num_IK(p_nom, q); % compute inverse kinematics for the expected end-effector position
     
     % LOGGING errors and pos
         p = get_p(q); % compute current end-effector position
@@ -132,11 +131,11 @@ while t < t_fin % run for a fixed time
     disp(['dq = [', num2str(dq'), ']']);
 
     % CHECK Limits
-    %dq = clamp_vec(dq, -LIM_dq_max, LIM_dq_max); % clamp joint velocity to max limits
+    dq = clamp_vec(dq, -LIM_dq_max, LIM_dq_max); % clamp joint velocity to max limits
     disp(['Clamped dq = [', num2str(dq'), ']']);
 
     q = q + dq * dt; % update joint position
-    %q = clamp_vec(q, LIM_q_min, LIM_q_max); % clamp joint position to limits
+    q = clamp_vec(q, LIM_q_min, LIM_q_max); % clamp joint position to limits
 
     % if we are near the singularity, we want to save the time in t_sing
     if norm(p-p_sing) < 0.01 % if we are within 0.1 rad of the singularity

@@ -27,7 +27,8 @@ function ddq = proj_grad_step_acc(q, dq, ddr, p_d, dp_d)
 
     grad_H = num_diff(H, q)'; % numerical gradient of H (transposed Jacobian of scalar function)
     
-    q0_ddot = grad_H - 2 * dq; % damping term (can be adjusted)
+    damp = 2;
+    q0_ddot = grad_H - damp * dq; % damping term (can be adjusted)
 
 
     if nargin < 4  
