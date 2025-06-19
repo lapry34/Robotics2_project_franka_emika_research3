@@ -179,7 +179,7 @@ while t < t_fin % run for a fixed time
          disp(['Clamped dq = [', num2str(q_dot'), ']']);
      end
 
-    q = q + q_dot * dt; % update joint position
+    q = q + q_dot * dt + 0.5*q_ddot*dt^2; % update joint position (integration step as in De Luca Paper)
  
     q = clamp_vec(q, LIM_q_min, LIM_q_max); % clamp joint position to limits
 

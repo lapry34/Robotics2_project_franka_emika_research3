@@ -140,7 +140,7 @@ while t < t_fin % run for a fixed time
     dq = clamp_vec(dq, -LIM_dq_max, LIM_dq_max); % clamp joint velocity to max limits
     disp(['Clamped dq = [', num2str(dq'), ']']);
 
-    q = q + dq * dt; % update joint position
+    q = q + dq * dt + 0.5*ddq*dt^2; % update joint position (integration step as in De Luca Paper)
     q = clamp_vec(q, LIM_q_min, LIM_q_max); % clamp joint position to limits
 
     % if we are near the singularity, we want to save the time in t_sing

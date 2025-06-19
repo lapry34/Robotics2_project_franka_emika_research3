@@ -34,16 +34,11 @@ function ddq = reduced_grad_step_acc(q, dq, ddr, qA_idx, qB_idx, p_d, dp_d)
     J_a_inv = pinv(J_a); % (N_a x M) matrix, where N_a = length(qA_idx), M = 3 or 6
     %J_a_inv = DLS(J_a); % damped least squares inverse of J_a
 
-    % H_man = sqrt(det(J * J')); % maximize distance from singularities  (6x7 * 7x6 = 6x6)
-    H_man = @(q) sqrt(det(get_J(q) * get_J(q)'));
-    %H_range = @(q) H_range_dist(q);
-
-    H = H_man;
+    H = @(q) simpler_H(q); % function to maximize distance from singularities
 
     grad_H = num_diff(H, q)'; % numerical gradient of H (transposed Jacobian of scalar function)
 
     damp = 2; % damping factor
-    grad_H = grad_H - damp * dq; % damping term (can be adjusted)
 
     F = [-(J_a_inv * J_b)', Id]; % (N x N) matrix for reduced gradient step
     grad_H_b_prime = F * grad_H; % (N x 1) gradient of H with respect to qB modified for RG.
