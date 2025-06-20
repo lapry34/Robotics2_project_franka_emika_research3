@@ -4,6 +4,7 @@ digits 4
 addpath("./Matlab_Scripts/Redundancy/")
 addpath("./Matlab_Scripts/Robotics1/")
 addpath("./Trajectory/")
+addpath("./Plots/")
 
 % GLOBALS
 N = 7; % number of joints
@@ -161,128 +162,11 @@ fprintf("Norm of final error: %.4f\n", norm(fin_err))
 % plot joint over time
 disp("Simulation finished. Plotting results...");
 
-figure;
-
-% Plot end-effector position over time
-subplot(2, 1, 1);
-hold on;
-% time = 0:dt:t_fin-dt;
-if T > 2
-    time = 0:dt:t_fin; % time vector for plotting
-else
-    time = 0:dt:t_fin-dt; % time vector for plotting
-end
-
-
-plot(time, p_list(1, :), 'b', 'DisplayName', 'Real Position (X)');
-plot(time, double(subs(p_d_sym(1), t_sym, time)), 'r--', 'DisplayName', 'Nominal Position (X)');
-plot(time, p_list(2, :), 'g', 'DisplayName', 'Real Position (Y)');
-plot(time, double(subs(p_d_sym(2), t_sym, time)), 'm--', 'DisplayName', 'Nominal Position (Y)');
-plot(time, p_list(3, :), 'c', 'DisplayName', 'Real Position (Z)');
-plot(time, double(subs(p_d_sym(3), t_sym, time)), 'k--', 'DisplayName', 'Nominal Position (Z)');
-xlabel('Time (s)');
-ylabel('Position (m)');
-title('End-Effector Position Over Time (X, Y, Z)');
-legend;
-grid on;
-
-% Plot norm of the error over time
-subplot(2, 1, 2);
-plot(time, error_list, 'g', 'DisplayName', 'Norm of Error');
-xlabel('Time (s)');
-ylabel('Error Norm (m)');
-title('Norm of End-Effector Position Error Over Time');
-xline(t_sing, '--r', 'Singularity Crossing', 'LabelHorizontalAlignment', 'left', 'LabelVerticalAlignment', 'middle', 'HandleVisibility', 'off');
-legend;
-grid on;
-
-
-% Plot joint positions
-figure;
-plot(time, q_list);
-xlabel('Time (s)');
-ylabel('Joint Angles (rad)');
-title('Joint Angles Over Time');
-% Add grid and legend
-grid on;
-legend('q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7');
-
-% Add a vertical line at t = 0.97
-%hold on;
-%
-
-% Add dotted lines at q = [-0.092246, 0.3226, -0.067663, -0.11786, -0.077494, 0.56935, 0]
-%q_target = [-0.092246, 0.3226, -0.067663, -0.11786, -0.077494, 0.56935, 0];
-%for i = 1:length(q_target)
-%    yline(q_target(i), '--', ['q', num2str(i), ' = ', num2str(q_target(i))], ...
-%        'LabelHorizontalAlignment', 'left', 'LabelVerticalAlignment', 'middle');
-%end
-% plot joint accelerations with bounds for each joint
-figure;
-for i = 1:N
-    subplot(N, 1, i);
-    plot(time, ddq_list(i, :), 'b', 'DisplayName', ['q', num2str(i), ' Acceleration']);
-    hold on;
-    yline(LIM_ddq_max(i), 'r--', 'DisplayName', ['q', num2str(i), ' Max']);
-    yline(-LIM_ddq_max(i), 'g--', 'DisplayName', ['q', num2str(i), ' Min']);
-    xlabel('Time (s)');
-    ylabel(['q', num2str(i), ' Acceleration (rad/s^2)']);
-    title(['Joint ', num2str(i), ' Acceleration Over Time']);
-    grid on;
-    legend;
-end
-
-% plot joint velocities with bounds for each joint
-figure;
-for i = 1:N
-    subplot(N, 1, i);
-    plot(time, dq_list(i, :), 'b', 'DisplayName', ['q', num2str(i), ' Velocity']);
-    hold on;
-    yline(LIM_dq_max(i), 'r--', 'DisplayName', ['q', num2str(i), ' Max']);
-    yline(-LIM_dq_max(i), 'g--', 'DisplayName', ['q', num2str(i), ' Min']);
-    xlabel('Time (s)');
-    ylabel(['q', num2str(i), ' Velocity (rad/s)']);
-    title(['Joint ', num2str(i), ' Velocity Over Time']);
-    grid on;
-    legend;
-end
-
-% plot joint positions with bounds for each joint
-figure;
-for i = 1:N
-    subplot(N, 1, i);
-    plot(time, q_list(i, :), 'b', 'DisplayName', ['q', num2str(i), ' Position']);
-    hold on;
-    yline(LIM_q_max(i), 'r--', 'DisplayName', ['q', num2str(i), ' Max']);
-    yline(LIM_q_min(i), 'g--', 'DisplayName', ['q', num2str(i), ' Min']);
-    xlabel('Time (s)');
-    ylabel(['q', num2str(i), ' Position (rad)']);
-    title(['Joint ', num2str(i), ' Position Over Time']);
-    grid on;
-    legend;
-end
-
-
-
-
-
-% After computing p_start and p_end, add this in the plotting section:
-figure
-plot3(p_list(1, :), p_list(2, :), p_list(3, :));
-hold on;
-plot3([p_start(1) p_end(1)], [p_start(2) p_end(2)], [p_start(3) p_end(3)], 'g--');
-xlabel('X Position (m)');
-ylabel('Y Position (m)');
-zlabel('Z Position (m)');
-title('End-Effector Position Over Time');
-scatter3(p_sing(1), p_sing(2), p_sing(3), 50, 'filled', 'MarkerFaceColor', 'k'); % Singularity point in red
-scatter3(p_start(1), p_start(2), p_start(3), 10, 'filled', 'MarkerFaceColor', 'g'); % Start point in green
-scatter3(p_end(1), p_end(2), p_end(3), 10, 'filled', 'MarkerFaceColor', 'b'); % End point in blue
-legend('End-Effector Path', 'Start to End Path', 'Singularity Point', 'Start Point', 'End Point');
-
-dx = 0.5;
-
-xlim([p_start(1) - dx, p_start(1) + dx])
-ylim([p_start(2) - dx, p_start(2) + dx])
-zlim([p_start(3) - dx, p_start(3) + dx])
-grid on;
+plot_all(   N, T, ...
+            dt, t_fin, t_sym, t_sing, ...
+            p_list, p_start, p_end, p_sing, p_d_sym, ...
+            q_list, dq_list, error_list, ...
+            LIM_dq_max, LIM_q_max, LIM_q_min, ...
+            1, ... % want_acc_orient = 1 (plot accelerations)
+            ddq_list ...
+)
