@@ -48,7 +48,19 @@ def generate_launch_description():
         }]
     )
 
+    proj_grad_node = Node(
+        package='my_fr3_control',
+        executable='projected_gradient_pos',
+        name='projected_gradient_controller',
+        output='screen',
+        parameters=[{
+            'T': 3.0,  # Trajectory duration
+            'dt': 0.01,  # Control loop period
+        }]
+    )
+
     return LaunchDescription([
         franka_vis,
-        jacobian_node
+        jacobian_node,
+        proj_grad_node
     ])

@@ -1,5 +1,25 @@
 #!/usr/bin/env python3
+"""
+ROS2 Python node to compute and print the manipulator Jacobian for the Franka Research 3 (FR3) arm.
 
+This node subscribes to JointState messages, computes the geometric Jacobian for the current set of joint angles,
+and prints it to the console.
+
+Dependencies:
+  - rclpy
+  - sensor_msgs
+  - geometry_msgs
+  - tf_transformations or sympy / custom
+
+Usage:
+  1. Make sure your FR3 URDF is loaded and a JointState publisher (e.g., the random joint publisher) is running.
+  2. Run this node:
+       ros2 run my_fr3_control jacobian_computation_node
+
+Note:
+  Requires `urdf_parser_py` and `kdl_parser_py` for parsing the URDF into a KDL chain,
+  and `PyKDL` for Jacobian computation.
+"""
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
@@ -59,6 +79,7 @@ class JacobianComputation(Node):
         self.jacobian_pub = self.create_publisher(Float64MultiArray, 'jacobian', 10)
         self.rotation_pub = self.create_publisher(Float64MultiArray, 'rotation_matrix', 10)
         self.phi_pub = self.create_publisher(Float64MultiArray, 'euler_angles', 10)
+        self.position_pub = self.create_publisher(Float64MultiArray, 'end_effector_position', 10)
 
         # Log initialization
         self.get_logger().info('JacobianComputer initialized')
@@ -66,10 +87,15 @@ class JacobianComputation(Node):
     def joint_state_callback(self, msg: JointState):
         
         self._update_joints(msg)
-        self._update_J()
+        self._update_J_geom()
 
-        
-        R = self._get_R()
+        # Compute forward kinematics to get the end-effector frame
+        end_frame = PyKDL.Frame()
+        self.fk_solver.JntToCart(self.joint_positions, end_frame)
+
+        p = np.array([end_frame.p[i] for i in range(3)])
+        R = np.array([[end_frame.M[i, j] for j in range(3)] for i in range(3)])
+
         phi = self._get_phi(R)
         J_task = self._get_task_J(self.J_geom, phi)
 
@@ -83,25 +109,7 @@ class JacobianComputation(Node):
         self._publish_matrix(self.jacobian_pub, J_task)
         self._publish_matrix(self.rotation_pub, R)
         self._publish_array(self.phi_pub, phi)
-
-
-
-
-    def _get_R(self) -> np.ndarray:
-        """ could also be done by listening to the tf topic: maybe more efficient? """
-        # Compute forward kinematics to get the end-effector frame
-        end_frame = PyKDL.Frame()
-        self.fk_solver.JntToCart(self.joint_positions, end_frame)
-
-        # Extract rotation as a PyKDL Rotation object
-        rot = end_frame.M
-
-        # Convert to numpy array
-        rot_mat = np.zeros((3, 3))
-        for i in range(3):
-            for j in range(3):
-                rot_mat[i, j] = rot[i, j]
-        return rot_mat
+        self._publish_array(self.position_pub, p)
 
 
     def _publish_matrix(self, pub, data: np.ndarray):
@@ -122,7 +130,7 @@ class JacobianComputation(Node):
         
 
 
-    def _update_J(self):
+    def _update_J_geom(self):
 
         self.jac_solver.JntToJac(self.joint_positions, self.kdl_jacobian)
 

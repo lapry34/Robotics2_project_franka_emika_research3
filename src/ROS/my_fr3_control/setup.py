@@ -22,7 +22,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'random_joint_publisher_fr3 = my_fr3_control.random_joint_publisher_fr3:main',
+            'projected_gradient_pos = my_fr3_control.projected_gradient_pos:main',
             'jacobian_computation_node = my_fr3_control.jacobian_computation_node:main',
     
         ],
