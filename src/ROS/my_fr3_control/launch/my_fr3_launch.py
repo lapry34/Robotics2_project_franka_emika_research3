@@ -1,14 +1,21 @@
 from launch import LaunchDescription
 from launch_ros.parameter_descriptions import ParameterValue
-from launch.actions import IncludeLaunchDescription
+from launch.actions import IncludeLaunchDescription, DeclareLaunchArgument
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import Command, PathJoinSubstitution
+from launch.substitutions import Command, PathJoinSubstitution, LaunchConfiguration
 from ament_index_python.packages import get_package_share_directory
 from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    # 1) Include the standard visualize_franka.launch.py from franka_description
+    # 1) Declare a launch argument for orientation
+    declare_orientation_arg = DeclareLaunchArgument(
+        'orientation',
+        default_value='true',
+        description='Whether to compute orientation (true or false)'
+    )
+
+    # 2) Include the standard visualize_franka launch
     franka_vis = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
             PathJoinSubstitution([
@@ -23,7 +30,7 @@ def generate_launch_description():
         }.items()
     )
 
-    # 2) Grab the robot_description XML from the xacro command used in the FR3 visualization launch
+    # 3) Generate the robot_description from xacro
     robot_description = Command([
         'xacro ',
         PathJoinSubstitution([
@@ -35,32 +42,34 @@ def generate_launch_description():
         ' arm_id:=fr3'
     ])
 
-    # 3) Launch your JacobianComputer node, passing in robot_description
+    # 4) Launch the JacobianComputer node, passing orientation from launch argument
     jacobian_node = Node(
         package='my_fr3_control',
         executable='jacobian_computation_node',
         name='jacobian_computer_node',
         output='screen',
         parameters=[{
-            # force this to be treated as a string parameter
-            'robot_description':
-                ParameterValue(robot_description, value_type=str)
+            'robot_description': ParameterValue(robot_description, value_type=str),
+            'orientation': ParameterValue(LaunchConfiguration('orientation'), value_type=bool),
         }]
     )
 
-    proj_grad_node = Node(
+    # 5) Launch the projected gradient orientation controller, using the same orientation argument
+    proj_grad_ori_node = Node(
         package='my_fr3_control',
-        executable='projected_gradient_pos',
-        name='projected_gradient_controller',
+        executable='projected_gradient_ori',
+        name='projected_gradient_ori_controller',
         output='screen',
         parameters=[{
             'T': 3.0,  # Trajectory duration
             'dt': 0.01,  # Control loop period
+            'orientation': ParameterValue(LaunchConfiguration('orientation'), value_type=bool),
         }]
     )
 
     return LaunchDescription([
+        declare_orientation_arg,
         franka_vis,
         jacobian_node,
-        proj_grad_node
+        proj_grad_ori_node
     ])

@@ -23,6 +23,7 @@ setup(
     entry_points={
         'console_scripts': [
             'projected_gradient_pos = my_fr3_control.projected_gradient_pos:main',
+            'projected_gradient_ori = my_fr3_control.projected_gradient_ori:main',
             'jacobian_computation_node = my_fr3_control.jacobian_computation_node:main',
     
         ],

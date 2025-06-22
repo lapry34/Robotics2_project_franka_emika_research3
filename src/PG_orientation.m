@@ -114,6 +114,8 @@ disp(['End position: p_fin = [', num2str(p_fin'), ']']);
 disp(['Start joint angles: q_start = [', num2str(q_in'), ']']);
 disp(['Time step: dt = ', num2str(dt), ' s']);
 disp(['Total simulation time: t_fin = ', num2str(t_fin), ' s']);
+disp(['r_in = [', num2str(r_in'), ']']);
+disp(['r_fin = [', num2str(r_fin'), ']']);
 
 disp("Press enter to start the simulation...");
 pause; % wait for user input to start the simulation

@@ -33,6 +33,10 @@ class JacobianComputation(Node):
     def __init__(self):
         super().__init__('jacobian_computer_node')
 
+        # Parameters
+        self.declare_parameter('orientation', False)  # Whether to compute orientation Jacobian
+        self.orientation = self.get_parameter('orientation').get_parameter_value().bool_value 
+
         # Declare & fetch the robot_description
         self.declare_parameter('robot_description', '')
         robot_xml = self.get_parameter('robot_description') \
@@ -52,21 +56,21 @@ class JacobianComputation(Node):
         base_link = 'base'
         end_link = 'fr3_link8'
         self.kdl_chain = self.kdl_tree.getChain(base_link, end_link)
+        self.num_joints = self.kdl_chain.getNrOfJoints()
         
         # --------------------------------------------------------------------
+        self.rows, self.cols = 6 if self.orientation else 3, self.num_joints
+        self.dbg = True  # Flag to log first message only
 
         # Solvers
         self.jac_solver = PyKDL.ChainJntToJacSolver(self.kdl_chain)
         self.fk_solver = PyKDL.ChainFkSolverPos_recursive(self.kdl_chain)
 
         # Joint containers
-        num_joints = self.kdl_chain.getNrOfJoints()
-        self.joint_positions = PyKDL.JntArray(num_joints)
-        self.kdl_jacobian = PyKDL.Jacobian(num_joints)
-        self.J_geom = np.zeros((6, num_joints))
+        self.joint_positions = PyKDL.JntArray(self.num_joints)
+        self.kdl_jacobian = PyKDL.Jacobian(self.num_joints)
+        self.J_geom = np.zeros((self.rows, self.num_joints))
 
-        self.rows, self.cols = 6, num_joints
-        self.dbg = True  # Flag to log first message only
 
         # subscribers
         self.subscription = self.create_subscription(
@@ -76,10 +80,17 @@ class JacobianComputation(Node):
             10)
         
         # publishers
-        self.jacobian_pub = self.create_publisher(Float64MultiArray, 'jacobian', 10)
-        self.rotation_pub = self.create_publisher(Float64MultiArray, 'rotation_matrix', 10)
-        self.phi_pub = self.create_publisher(Float64MultiArray, 'euler_angles', 10)
-        self.position_pub = self.create_publisher(Float64MultiArray, 'end_effector_position', 10)
+        # self.jacobian_pub = self.create_publisher(Float64MultiArray, 'jacobian', 10)
+        self.grad_H_pub = self.create_publisher(Float64MultiArray, 'grad_H', 10)
+        
+        if self.orientation:
+            self.pose_ori_pub = self.create_publisher(Float64MultiArray, 'end_effector_pose', 10)
+            self.jac_task_pub = self.create_publisher(Float64MultiArray, 'jacobian_task', 10)
+            # self.rotation_pub = self.create_publisher(Float64MultiArray, 'rotation_matrix', 10)
+            # self.phi_pub = self.create_publisher(Float64MultiArray, 'euler_angles', 10)
+        else:
+            self.position_pub = self.create_publisher(Float64MultiArray, 'end_effector_position', 10)
+            self.jac_geom_pub = self.create_publisher(Float64MultiArray, 'jacobian_geom', 10)
 
         # Log initialization
         self.get_logger().info('JacobianComputer initialized')
@@ -87,56 +98,92 @@ class JacobianComputation(Node):
     def joint_state_callback(self, msg: JointState):
         
         self._update_joints(msg)
-        self._update_J_geom()
+        self._update_J_geom(self.J_geom, self.joint_positions)
 
         # Compute forward kinematics to get the end-effector frame
         end_frame = PyKDL.Frame()
         self.fk_solver.JntToCart(self.joint_positions, end_frame)
 
         p = np.array([end_frame.p[i] for i in range(3)])
-        R = np.array([[end_frame.M[i, j] for j in range(3)] for i in range(3)])
 
-        phi = self._get_phi(R)
-        J_task = self._get_task_J(self.J_geom, phi)
+
+        if self.orientation:
+            R = np.array([[end_frame.M[i, j] for j in range(3)] for i in range(3)])
+
+            phi = self._get_phi(R)
+            J_task = self._get_task_J(self.J_geom, phi)
+
+            pose = np.concatenate((p, phi))
+            self._publish_array(self.pose_ori_pub, pose)
+            self._publish_matrix(self.jac_task_pub, J_task)
+
+        else:
+            self._publish_array(self.position_pub, p)
+            self._publish_matrix(self.jac_geom_pub, self.J_geom)
+
+        grad_H = self.num_diff(self.H_man, self.joint_positions)
+        self._publish_array(self.grad_H_pub, grad_H)
 
         
         if self.dbg:
             self.get_logger().info(f"Received joint states: {msg.position}")
-            self.get_logger().info(f"Jacobian computed:\n{J_task}\n\n\n")
+            if self.orientation:
+                self.get_logger().info(f"Jacobian computed:\n{J_task}\n\n\n")
+            else:
+                self.get_logger().info(f"Jacobian computed:\n{self.J_geom}\n\n\n")
 
             self.dbg = False
 
-        self._publish_matrix(self.jacobian_pub, J_task)
-        self._publish_matrix(self.rotation_pub, R)
-        self._publish_array(self.phi_pub, phi)
-        self._publish_array(self.position_pub, p)
-
-
-    def _publish_matrix(self, pub, data: np.ndarray):
-        msg = Float64MultiArray()
-        rows, cols = data.shape
-        msg.layout.dim = [
-            MultiArrayDimension(label='rows', size=rows, stride=rows * cols),
-            MultiArrayDimension(label='cols', size=cols, stride=cols)
-        ]
-        msg.data = data.ravel().tolist()
-        pub.publish(msg)
-
-    def _publish_array(self, pub, data: np.ndarray):
-        msg = Float64MultiArray()
-        msg.layout.dim = [MultiArrayDimension(label='size', size=data.size, stride=1)]
-        msg.data = data.flatten().tolist()
-        pub.publish(msg)
         
 
 
-    def _update_J_geom(self):
+    def _update_joints(self, msg: JointState):
+        for idx, name in enumerate(msg.name):
+            if idx < self.joint_positions.rows():
+                self.joint_positions[idx] = msg.position[idx]
+        # self.get_logger().info(f"Updated joint positions: {self.joint_positions}")
 
-        self.jac_solver.JntToJac(self.joint_positions, self.kdl_jacobian)
+    def _update_J_geom(self, J_geom_out, q_in: PyKDL.JntArray):
+        
+        self.jac_solver.JntToJac(q_in, self.kdl_jacobian)
 
         for i in range(self.rows):
             for j in range(self.cols):
-                self.J_geom[i, j] = self.kdl_jacobian[i, j]
+                J_geom_out[i, j] = self.kdl_jacobian[i, j]
+
+
+
+    def H_man(self, q_var: PyKDL.JntArray) -> float:
+        J = np.zeros((self.rows, self.cols))
+        self._update_J_geom(J, q_var)
+
+        if self.orientation:
+            J = self._get_task_J(J, q_var=q_var)
+
+        return np.sqrt(np.linalg.det(J.dot(J.T)))
+
+    def num_diff(self, func, q: PyKDL.JntArray, eps=1e-6):
+
+        # allocate once
+        grad    = np.zeros(self.num_joints)
+        q_plus  = PyKDL.JntArray(self.num_joints)
+        q_minus = PyKDL.JntArray(self.num_joints)
+        dq      = PyKDL.JntArray(self.num_joints)
+
+        for i in range(self.num_joints):
+
+            dq[i] = eps
+
+            PyKDL.Add(q, dq, q_plus)
+            PyKDL.Subtract(q, dq, q_minus)
+
+            grad[i] = (func(q_plus) - func(q_minus)) / (2.0 * eps)
+
+            dq[i] = 0.0
+
+        return grad
+
+    
 
 
     def _get_phi(self, R: np.ndarray) -> np.ndarray:
@@ -166,10 +213,20 @@ class JacobianComputation(Node):
         return E
     
 
-    def _get_task_J(self, J_geo: np.ndarray, phi:np.ndarray) -> np.ndarray:
+    def _get_task_J(self, J_geo: np.ndarray, phi:np.ndarray = None, q_var: PyKDL.JntArray = None) -> np.ndarray:
         """
         Build task-space Jacobian: J_task = blkdiag(I3, E_inv) * J_geo.
         """
+        if phi is None:
+            if q_var is not None:
+                end_frame = PyKDL.Frame()
+                self.fk_solver.JntToCart(q_var, end_frame)
+
+                R = np.array([[end_frame.M[i, j] for j in range(3)] for i in range(3)])
+                phi = self._get_phi(R)
+            else:
+                raise ValueError("Either phi or q_var must be provided to compute the task Jacobian.")
+        
         # Block diagonal 6x6
         E = self._get_E(phi)
         E_inv = np.linalg.inv(E)
@@ -179,12 +236,22 @@ class JacobianComputation(Node):
         return B.dot(J_geo)
 
 
-    def _update_joints(self, msg: JointState):
-        for idx, name in enumerate(msg.name):
-            if idx < self.joint_positions.rows():
-                self.joint_positions[idx] = msg.position[idx]
-        # self.get_logger().info(f"Updated joint positions: {self.joint_positions}")
 
+    def _publish_matrix(self, pub, data: np.ndarray):
+        msg = Float64MultiArray()
+        rows, cols = data.shape
+        msg.layout.dim = [
+            MultiArrayDimension(label='rows', size=rows, stride=rows * cols),
+            MultiArrayDimension(label='cols', size=cols, stride=cols)
+        ]
+        msg.data = data.ravel().tolist()
+        pub.publish(msg)
+
+    def _publish_array(self, pub, data: np.ndarray):
+        msg = Float64MultiArray()
+        msg.layout.dim = [MultiArrayDimension(label='size', size=data.size, stride=1)]
+        msg.data = data.flatten().tolist()
+        pub.publish(msg)
 
 
 def main(args=None):
