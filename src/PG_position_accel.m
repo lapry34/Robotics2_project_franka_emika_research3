@@ -79,7 +79,7 @@ p_list = []; % to store end-effector positions
 error_list = []; % to store error norms
 
 
-dt = 0.01; % time step
+dt = 0.001; % time step
 t = 0.0;
 q = q_start; % initialize joint position
 dq = zeros(N, 1); % initialize joint velocity

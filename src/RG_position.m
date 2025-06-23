@@ -83,7 +83,7 @@ ms_a_list = []; % to store minimum singular values of J_a
 qA_idx = [2,4,5]; % indices of joints in A (nonsingular)
 qB_idx = [1, 3, 6, 7]; % indices of joints in B (N-M = 4)
 
-dt = 0.01; % time step
+dt = 0.001; % time step
 t = 0.0;
 q = q_start; % initialize joint position
 dq = zeros(N, 1); % initialize joint velocity

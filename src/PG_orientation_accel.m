@@ -102,7 +102,7 @@ phi_list = []; % to store orientation angles
 p_list = []; % to store end-effector positions
 error_list = []; % to store error norms
  
-dt = 0.01; % time step
+dt = 0.001; % time step
 t = 0.0;
 q = q_in; % initialize joint position
 q_dot = zeros(N, 1); % initialize joint velocity

@@ -85,7 +85,7 @@ qB_idx = [1, 3, 6, 7]; % indices of joints in B (N-M = 4)
 alpha = 0.025; % step size for the gradient step
 damp = 2; % damping factor for the gradient step
 
-dt = 0.01; % time step
+dt = 0.001; % time step
 t = 0.0;
 q = q_start; % initialize joint position
 dq = zeros(N, 1); % initialize joint velocity

@@ -109,7 +109,7 @@ alpha = 1; % step size for the gradient step
 damp = 2; % damping factor for the gradient step
 
 
-dt = 0.01; % time step
+dt = 0.001; % time step
 t = 0.0;
 q = q_in; % initialize joint position
 q_dot = zeros(N, 1); % initialize joint velocity
