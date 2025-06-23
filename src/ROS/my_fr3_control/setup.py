@@ -22,11 +22,9 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'projected_gradient_pos = my_fr3_control.projected_gradient_pos:main',
-            'projected_gradient_ori = my_fr3_control.projected_gradient_ori:main',
-            'projected_gradient_acc_ori = my_fr3_control.projected_gradient_acc_ori:main',
+            'velocity_controller_node = my_fr3_control.velocity_controller_node:main',
+            'acceleration_controller_node = my_fr3_control.acceleration_controller_node:main',
             'jacobian_computation_node = my_fr3_control.jacobian_computation_node:main',
-    
         ],
     },
     # scripts=['scripts/random_joint_publisher_fr3.py'],

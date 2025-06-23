@@ -69,12 +69,16 @@ def generate_launch_description():
 
     # 5) Launch the projected gradient orientation controller, using the same orientation argument
 
+    name = 'RG' if LaunchConfiguration('is_RG') == 'true' else 'PG'
+    name += '_acc' if LaunchConfiguration('acceleration') == 'true' else '_vel'
+    name += '_ori' if LaunchConfiguration('orientation') == 'true' else '_pos'
+
     if LaunchConfiguration('acceleration') == 'true':
 
         proj_grad_node = Node(
             package='my_fr3_control',
-            executable='projected_gradient_acc_ori',
-            name='projected_gradient_acc_ori_controller',
+            executable='acceleration_controller_node',
+            name=name,
             output='screen',
             parameters=[{
                 'T': 2.5,  # Trajectory duration
@@ -87,8 +91,8 @@ def generate_launch_description():
 
         proj_grad_node = Node(
             package='my_fr3_control',
-            executable='projected_gradient_ori',
-            name='projected_gradient_ori_controller',
+            executable='velocity_controller_node',
+            name=name,
             output='screen',
             parameters=[{
                 'T': 2.5,  # Trajectory duration
