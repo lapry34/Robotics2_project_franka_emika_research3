@@ -11,8 +11,14 @@ def generate_launch_description():
     # 1) Declare a launch argument for orientation
     declare_orientation_arg = DeclareLaunchArgument(
         'orientation',
-        default_value='true',
+        default_value='false',
         description='Whether to compute orientation (true or false)'
+    )
+
+    declare_acceleration_arg = DeclareLaunchArgument(
+        'acceleration',
+        default_value='true',
+        description='Whether to compute pg on acceleration (true or false)'
     )
 
     # 2) Include the standard visualize_franka launch
@@ -51,25 +57,44 @@ def generate_launch_description():
         parameters=[{
             'robot_description': ParameterValue(robot_description, value_type=str),
             'orientation': ParameterValue(LaunchConfiguration('orientation'), value_type=bool),
+            'acceleration': ParameterValue(LaunchConfiguration('acceleration'), value_type=bool),
         }]
     )
 
     # 5) Launch the projected gradient orientation controller, using the same orientation argument
-    proj_grad_ori_node = Node(
-        package='my_fr3_control',
-        executable='projected_gradient_ori',
-        name='projected_gradient_ori_controller',
-        output='screen',
-        parameters=[{
-            'T': 3.0,  # Trajectory duration
-            'dt': 0.01,  # Control loop period
-            'orientation': ParameterValue(LaunchConfiguration('orientation'), value_type=bool),
-        }]
-    )
 
+    if LaunchConfiguration('acceleration') == 'true':
+
+        proj_grad_node = Node(
+            package='my_fr3_control',
+            executable='projected_gradient_acc_ori',
+            name='projected_gradient_acc_ori_controller',
+            output='screen',
+            parameters=[{
+                'T': 3.0,  # Trajectory duration
+                'dt': 0.01,  # Control loop period
+                'orientation': ParameterValue(LaunchConfiguration('orientation'), value_type=bool),
+            }]
+        )
+
+    else:
+
+        proj_grad_node = Node(
+            package='my_fr3_control',
+            executable='projected_gradient_ori',
+            name='projected_gradient_ori_controller',
+            output='screen',
+            parameters=[{
+                'T': 3.0,  # Trajectory duration
+                'dt': 0.01,  # Control loop period
+                'orientation': ParameterValue(LaunchConfiguration('orientation'), value_type=bool),
+            }]
+        )
+    
     return LaunchDescription([
         declare_orientation_arg,
+        declare_acceleration_arg,
         franka_vis,
         jacobian_node,
-        proj_grad_ori_node
+        proj_grad_node
     ])

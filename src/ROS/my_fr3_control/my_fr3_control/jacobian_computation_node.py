@@ -36,6 +36,9 @@ class JacobianComputation(Node):
         # Parameters
         self.declare_parameter('orientation', False)  # Whether to compute orientation Jacobian
         self.orientation = self.get_parameter('orientation').get_parameter_value().bool_value 
+        self.declare_parameter('acceleration', False)  # Whether to compute PG on acceleration 
+        self.acceleration = self.get_parameter('acceleration').get_parameter_value().bool_value 
+        
 
         # Declare & fetch the robot_description
         self.declare_parameter('robot_description', '')
@@ -68,8 +71,10 @@ class JacobianComputation(Node):
 
         # Joint containers
         self.joint_positions = PyKDL.JntArray(self.num_joints)
+        self.joint_velocities = PyKDL.JntArray(self.num_joints)
         self.kdl_jacobian = PyKDL.Jacobian(self.num_joints)
         self.J_geom = np.zeros((self.rows, self.num_joints))
+        self.J_dot = np.zeros((self.rows, self.num_joints))
 
 
         # subscribers
@@ -91,6 +96,9 @@ class JacobianComputation(Node):
         else:
             self.position_pub = self.create_publisher(Float64MultiArray, 'end_effector_position', 10)
             self.jac_geom_pub = self.create_publisher(Float64MultiArray, 'jacobian_geom', 10)
+
+        if self.acceleration:
+            self.jac_dot_pub = self.create_publisher(Float64MultiArray, 'jacobian_dot', 10)
 
         # Log initialization
         self.get_logger().info('JacobianComputer initialized')
@@ -121,6 +129,10 @@ class JacobianComputation(Node):
             self._publish_array(self.position_pub, p)
             self._publish_matrix(self.jac_geom_pub, self.J_geom)
 
+        if self.acceleration:
+            self.J_dot = self._get_J_dot(self.J_geom, self.joint_positions, self.joint_velocities)
+            self._publish_matrix(self.jac_dot_pub, self.J_dot)
+
         grad_H = self.num_diff(self.H_man, self.joint_positions)
         self._publish_array(self.grad_H_pub, grad_H)
 
@@ -138,10 +150,16 @@ class JacobianComputation(Node):
 
 
     def _update_joints(self, msg: JointState):
+        if not msg.velocity:
+            self.get_logger().info("JointState message does not contain velocity information. Defaulting to zero velocities.")
         for idx, name in enumerate(msg.name):
             if idx < self.joint_positions.rows():
                 self.joint_positions[idx] = msg.position[idx]
-        # self.get_logger().info(f"Updated joint positions: {self.joint_positions}")
+            if msg.velocity and idx < self.joint_velocities.rows():
+                self.joint_velocities[idx] = msg.velocity[idx]
+            else:
+                self.joint_velocities[idx] = 0.0  # Default to zero if no velocity provided
+                # self.get_logger().info(f"Joint velocity for {name} not provided or index out of range.")
 
     def _update_J_geom(self, J_geom_out, q_in: PyKDL.JntArray):
         
@@ -184,6 +202,36 @@ class JacobianComputation(Node):
         return grad
 
     
+    def _get_J_dot(self, J: np.ndarray, q: PyKDL.JntArray, dq: PyKDL.JntArray, delta = 1e-6) -> np.ndarray:
+        
+        def get_J(q_var: PyKDL.JntArray) -> np.ndarray:
+            J = np.zeros((self.rows, self.cols))
+            self._update_J_geom(J, q_var)
+
+            if self.orientation:
+                J = self._get_task_J(J, q_var=q_var)
+            return J
+        
+        
+        J_dot = np.zeros((self.rows, self.cols))
+        q_cpy = PyKDL.JntArray(self.num_joints)
+        PyKDL.SetToZero(q_cpy)
+        PyKDL.Add(q, q_cpy, q_cpy)
+
+        for i in range(self.num_joints):
+
+            q_cpy[i] = q[i] + delta
+            J_plus = get_J(q_cpy)
+
+            q_cpy[i] = q[i] - delta
+            J_minus = get_J(q_cpy)
+
+            dJ_dqk = (J_plus - J_minus) / (2.0 * delta)
+            J_dot += dJ_dqk * dq[i]        
+
+            # TODO: exploit this loop to compute also grad_H 
+        
+        return J_dot
 
 
     def _get_phi(self, R: np.ndarray) -> np.ndarray:
