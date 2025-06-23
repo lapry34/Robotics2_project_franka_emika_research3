@@ -17,8 +17,14 @@ def generate_launch_description():
 
     declare_acceleration_arg = DeclareLaunchArgument(
         'acceleration',
-        default_value='false',
+        default_value='true',
         description='Whether to compute pg on acceleration (true or false)'
+    )
+
+    declare_isRG_arg = DeclareLaunchArgument(
+        'is_RG',
+        default_value='true',
+        description='Whether to compute reduced gradient or projected gradient (true or false)'
     )
 
     # 2) Include the standard visualize_franka launch
@@ -71,8 +77,8 @@ def generate_launch_description():
             name='projected_gradient_acc_ori_controller',
             output='screen',
             parameters=[{
-                'T': 3.0,  # Trajectory duration
-                'dt': 0.01,  # Control loop period
+                'T': 2.5,  # Trajectory duration
+                'dt': 0.001,  # Control loop period
                 'orientation': ParameterValue(LaunchConfiguration('orientation'), value_type=bool),
             }]
         )
@@ -85,15 +91,19 @@ def generate_launch_description():
             name='projected_gradient_ori_controller',
             output='screen',
             parameters=[{
-                'T': 3.0,  # Trajectory duration
-                'dt': 0.01,  # Control loop period
+                'T': 2.5,  # Trajectory duration
+                'dt': 0.001,  # Control loop period
                 'orientation': ParameterValue(LaunchConfiguration('orientation'), value_type=bool),
+                'is_RG': ParameterValue(LaunchConfiguration('is_RG'), value_type=bool),
             }]
         )
     
     return LaunchDescription([
+
         declare_orientation_arg,
         declare_acceleration_arg,
+        declare_isRG_arg,
+
         franka_vis,
         jacobian_node,
         proj_grad_node

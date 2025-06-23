@@ -115,11 +115,11 @@ class JacobianComputation(Node):
         end_frame = PyKDL.Frame()
         self.fk_solver.JntToCart(self.joint_positions, end_frame)
 
-        p = np.array([end_frame.p[i] for i in range(3)])
+        p = np.array([end_frame.p[i] for i in range(3)])  # TODO: can be sped up
 
 
         if self.orientation:
-            R = np.array([[end_frame.M[i, j] for j in range(3)] for i in range(3)])
+            R = np.array([[end_frame.M[i, j] for j in range(3)] for i in range(3)])  # TODO: can be sped up
 
             phi = self._get_phi(R)
             J_task = self._get_task_J(self.J_geom, phi)
