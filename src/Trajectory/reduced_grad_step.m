@@ -49,7 +49,7 @@ function dq = reduced_grad_step(q, dr, qA_idx, qB_idx, p_d)
 
     p = get_p(q, orientation); % end-effector position
     e = p_d - p; % error vector
-    Kp = 2*eye(length(e)); % proportional gain matrix
+    Kp = 10*eye(length(e)); % proportional gain matrix
 
     dq_b = grad_H_b_prime;
     dq_a = J_a_inv * (dr -J_b*dq_b + Kp*e); % joint velocities for A (N_a x 1)

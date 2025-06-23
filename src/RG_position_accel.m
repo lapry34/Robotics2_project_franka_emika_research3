@@ -105,6 +105,11 @@ pause; % wait for user input to start the simulation
 
 while t < t_fin % run for a fixed time
 
+    if t > T/2
+        qA_idx = [1,4,5]; % indices of joints in A (nonsingular)
+        qB_idx = [2, 3, 6, 7]; % indices of joints in B (N-M = 4)
+    end
+
     % Nominal Trajectory
     p_nom = double(subs(p_d_sym, t_sym, t)); % expected end-effector position at time t
     dp_nom = double(subs(dp_sym, t_sym, t)); 

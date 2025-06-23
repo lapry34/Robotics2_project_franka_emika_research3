@@ -1,5 +1,5 @@
 clc
-clear
+clear all
 close all
 digits 4
 addpath("./Matlab_Scripts/Redundancy/")
@@ -123,8 +123,12 @@ disp("Press enter to start the simulation...");
 pause; % wait for user input to start the simulation
 
 print_info = false;
-while t < t_fin % run for a fixed time
+while t <= t_fin % run for a fixed time
 
+    if t > T/2
+        qA_idx = [2,3,4,5,6,7]; % indices of joints in A (nonsingular)
+        qB_idx = [1]; % indices of joints in B (N-M = 1)
+    end
     % Nominal Trajectory
     r_d_nom = double(subs(r_d_sym, t_sym, t)); % expected end-effector pose at time t
     r_dot_nom = double(subs(r_dot_sym, t_sym, t)); 
@@ -203,13 +207,12 @@ figure;
 subplot(2, 1, 1);
 hold on;
 
-% time = 0:dt:t_fin-dt;
-% if T > 2
-%     time = 0:dt:t_fin; % time vector for plotting
-% else
-%     time = 0:dt:t_fin-dt; % time vector for plotting
-% end
-time = 0:dt:t_fin;
+if T > 2
+    time = 0:dt:t_fin; % time vector for plotting
+else
+    time = 0:dt:t_fin-dt; % time vector for plotting
+end
+
 
 
 plot(time, p_list(1, :), 'b', 'DisplayName', 'Real Position (X)');
