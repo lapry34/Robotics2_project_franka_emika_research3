@@ -14,9 +14,11 @@ class ProjectedGradientController(Node):
         self.declare_parameter('T', 3.0)  # Trajectory duration
         self.declare_parameter('dt', 0.01)  # Control loop period
         self.declare_parameter('orientation', False)  # Whether to compute orientation Jacobian
+        self.declare_parameter('is_RG', False)  # Whether to compute reduced gradient ro projected gradient
         self.T = self.get_parameter('T').get_parameter_value().double_value
         self.dt = self.get_parameter('dt').get_parameter_value().double_value
         self.orientation = self.get_parameter('orientation').get_parameter_value().bool_value
+        self.is_RG = self.get_parameter('is_RG').get_parameter_value().bool_value
 
         # Joint limits
         self.LIM_q_max = np.array([ 2.7437,  1.7837,  2.9007, -0.1518,  2.8065,  4.5169,  3.0159])
@@ -59,6 +61,13 @@ class ProjectedGradientController(Node):
         self.pose = np.zeros((self.rows, ))  # Placeholder for end-effector pose
         self.grad_H = np.zeros((self.N, ))  # Placeholder for gradient of manipulability measure
 
+        # J_a and J_b column indices for reduced gradient
+        if self.orientation:
+            self.qA_idx = np.array([0,1,2,3,4,5])
+            self.qB_idx = np.array([6])
+        else:
+            self.qA_idx = np.array([1,3,4])
+            self.qB_idx = np.array([0,2,5,6])
 
         # Subscribe to Jacobian and position topics
         
@@ -115,9 +124,26 @@ class ProjectedGradientController(Node):
             self.t = 0.0
             self.q = np.array([-0.028095, -0.27994, -0.061667, -1.8035, -0.0083122, 1.7527, 0])
             self.dq = np.zeros(self.N)
+
+            # J_a and J_b column indices for reduced gradient
+            if self.orientation:
+                self.qA_idx = np.array([0,1,2,3,4,5])
+                self.qB_idx = np.array([6])
+            else:
+                self.qA_idx = np.array([1,3,4])
+                self.qB_idx = np.array([0,2,5,6])
+
             self.publish_joint_state()
             self.get_logger().info('Resetting trajectory.')
             return
+
+        if self.is_RG and self.t > self.T / 2:
+            if self.orientation:
+                self.qA_idx = np.array([1,2,3,4,5,6])
+                self.qB_idx = np.array([0])
+            else:
+                self.qA_idx = np.array([0,3,4])
+                self.qB_idx = np.array([1,2,5,6])
 
         # quintic polynomial and derivative
         tau = self.t / self.T
@@ -130,8 +156,12 @@ class ProjectedGradientController(Node):
         dr_nom = self.delta_r * ds
         ddr_nom = self.delta_r * dds
 
-        # Projected Gradient step (stub)
-        self.ddq = self.proj_grad_step_acc(self.dq, ddr_nom, r_nom, dr_nom)
+        if self.is_RG:
+            # Reduced Gradient step (stub)
+            self.ddq = self.reduced_grad_step_acc(self.dq, ddr_nom, r_nom, dr_nom)
+        else:
+            # Projected Gradient step
+            self.ddq = self.proj_grad_step_acc(self.dq, ddr_nom, r_nom, dr_nom)
 
         # Clamp velocities and positions
         self.ddq = np.clip(self.ddq, -self.LIM_ddq_max, self.LIM_ddq_max)
@@ -172,6 +202,43 @@ class ProjectedGradientController(Node):
 
         # Projected gradient update
         ddq = q0_ddot + pinv_J.dot(x_ddot - J.dot(q0_ddot) + PD_control)
+
+        return ddq
+    
+    def reduced_grad_step_acc(self, dq, ddr, p_d, dp_d, alpha=1, damp=2.0):
+        # Current J, p, grad_H from subscriptions
+        J = self.J
+        J_dot = self.J_dot
+        pose = self.pose
+        grad_H = self.grad_H - damp * dq  # damped gradient
+
+        # Acceleration 
+        x_ddot = ddr - J_dot.dot(dq)
+
+        # M = self.rows : 3 or 6  -> N-M = 4 or 1
+        Id = np.eye(self.N - self.rows)
+        J_a = J[:, self.qA_idx] # (3x3)
+        J_b = J[:, self.qB_idx] # (3x4)
+
+        # Pseudoinverse
+        pinv_J_a = np.linalg.pinv(J_a)
+        # pinv_J_a = np.linalg.inv(J_a)
+
+        F = np.hstack([-(pinv_J_a @ J_b).T, Id])  # (N-M x N) matrix for reduced gradient step
+        grad_H_b_prime = alpha * (F @ grad_H)  # (N-M x 1) gradient of H with respect to qB modified for RG.
+
+        e = p_d - pose
+        e_dot = dp_d - J.dot(dq)
+        Kp = 10 * np.eye(self.rows)
+        Kd = 5 * np.eye(self.rows)
+        PD_control = Kp.dot(e) + Kd.dot(e_dot)
+
+        ddq_b = grad_H_b_prime  # joint velocities for B
+        ddq_a = pinv_J_a @ (x_ddot - J_b @ ddq_b + PD_control)  # joint velocities for A (N_a x 1)
+
+        ddq = np.zeros(self.N)
+        ddq[self.qA_idx] = ddq_a  # assign joint velocities for A
+        ddq[self.qB_idx] = ddq_b  # assign joint velocities for B
 
         return ddq
     
