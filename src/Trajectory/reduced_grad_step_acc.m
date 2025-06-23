@@ -1,4 +1,4 @@
-function ddq = reduced_grad_step_acc(q, dq, ddr, qA_idx, qB_idx, p_d, dp_d)
+function ddq = reduced_grad_step_acc(q, dq, ddr, qA_idx, qB_idx, p_d, dp_d, alpha, damp)
     % J is the Jacobian of the constraint function r(q)
     % dr is the change in r, which is a vector
     % dt is the time step for the update
@@ -38,10 +38,10 @@ function ddq = reduced_grad_step_acc(q, dq, ddr, qA_idx, qB_idx, p_d, dp_d)
 
     grad_H = num_diff(H, q)'; % numerical gradient of H (transposed Jacobian of scalar function)
 
-    damp = 2; % damping factor
+    grad_H = grad_H - damp * dq; % damping term (can be adjusted)
 
     F = [-(J_a_inv * J_b)', Id]; % (N x N) matrix for reduced gradient step
-    grad_H_b_prime = F * grad_H; % (N x 1) gradient of H with respect to qB modified for RG.
+    grad_H_b_prime = F * alpha * grad_H; % (N x 1) gradient of H with respect to qB modified for RG.
 
     if nargin < 6  
         PD_control = 0;
