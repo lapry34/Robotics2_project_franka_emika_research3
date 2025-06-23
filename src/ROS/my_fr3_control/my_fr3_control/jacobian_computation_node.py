@@ -108,6 +108,9 @@ class JacobianComputation(Node):
         self._update_joints(msg)
         self._update_J_geom(self.J_geom, self.joint_positions)
 
+        grad_H = self._get_grad_H(self.H_man, self.joint_positions, self.joint_velocities, self.J_dot)
+        self._publish_array(self.grad_H_pub, grad_H)
+
         # Compute forward kinematics to get the end-effector frame
         end_frame = PyKDL.Frame()
         self.fk_solver.JntToCart(self.joint_positions, end_frame)
@@ -130,11 +133,8 @@ class JacobianComputation(Node):
             self._publish_matrix(self.jac_geom_pub, self.J_geom)
 
         if self.acceleration:
-            self.J_dot = self._get_J_dot(self.J_geom, self.joint_positions, self.joint_velocities)
             self._publish_matrix(self.jac_dot_pub, self.J_dot)
 
-        grad_H = self.num_diff(self.H_man, self.joint_positions)
-        self._publish_array(self.grad_H_pub, grad_H)
 
         
         if self.dbg:
@@ -170,39 +170,15 @@ class JacobianComputation(Node):
                 J_geom_out[i, j] = self.kdl_jacobian[i, j]
 
 
-
-    def H_man(self, q_var: PyKDL.JntArray) -> float:
-        J = np.zeros((self.rows, self.cols))
-        self._update_J_geom(J, q_var)
-
-        if self.orientation:
-            J = self._get_task_J(J, q_var=q_var)
-
+    def H_man(self, J: np.ndarray) -> float:
         return np.sqrt(np.linalg.det(J.dot(J.T)))
 
-    def num_diff(self, func, q: PyKDL.JntArray, eps=1e-6):
-
-        # allocate once
-        grad    = np.zeros(self.num_joints)
-        q_plus  = PyKDL.JntArray(self.num_joints)
-        q_minus = PyKDL.JntArray(self.num_joints)
-        dq      = PyKDL.JntArray(self.num_joints)
-
-        for i in range(self.num_joints):
-
-            dq[i] = eps
-
-            PyKDL.Add(q, dq, q_plus)
-            PyKDL.Subtract(q, dq, q_minus)
-
-            grad[i] = (func(q_plus) - func(q_minus)) / (2.0 * eps)
-
-            dq[i] = 0.0
-
-        return grad
-
     
-    def _get_J_dot(self, J: np.ndarray, q: PyKDL.JntArray, dq: PyKDL.JntArray, delta = 1e-6) -> np.ndarray:
+    def _get_grad_H(self, func, q: PyKDL.JntArray, dq: PyKDL.JntArray, J_dot: np.ndarray, eps = 1e-6) -> np.ndarray:
+        """
+        Compute the gradient of the manipulator function H with respect to joint angles q.
+        Updates J_dot if acceleration is True.
+        """
         
         def get_J(q_var: PyKDL.JntArray) -> np.ndarray:
             J = np.zeros((self.rows, self.cols))
@@ -212,26 +188,29 @@ class JacobianComputation(Node):
                 J = self._get_task_J(J, q_var=q_var)
             return J
         
+        if self.acceleration:
+            J_dot = np.zeros((self.rows, self.cols))
         
-        J_dot = np.zeros((self.rows, self.cols))
+        grad = np.zeros(self.num_joints)
         q_cpy = PyKDL.JntArray(self.num_joints)
         PyKDL.SetToZero(q_cpy)
         PyKDL.Add(q, q_cpy, q_cpy)
 
         for i in range(self.num_joints):
 
-            q_cpy[i] = q[i] + delta
+            q_cpy[i] = q[i] + eps
             J_plus = get_J(q_cpy)
 
-            q_cpy[i] = q[i] - delta
+            q_cpy[i] = q[i] - eps
             J_minus = get_J(q_cpy)
 
-            dJ_dqk = (J_plus - J_minus) / (2.0 * delta)
-            J_dot += dJ_dqk * dq[i]        
+            if self.acceleration:
+                dJ_dqk = (J_plus - J_minus) / (2.0 * eps)
+                J_dot += dJ_dqk * dq[i]        
 
-            # TODO: exploit this loop to compute also grad_H 
+            grad[i] = (func(J_plus) - func(J_minus)) / (2.0 * eps)
         
-        return J_dot
+        return grad
 
 
     def _get_phi(self, R: np.ndarray) -> np.ndarray:

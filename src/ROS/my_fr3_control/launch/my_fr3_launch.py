@@ -11,13 +11,13 @@ def generate_launch_description():
     # 1) Declare a launch argument for orientation
     declare_orientation_arg = DeclareLaunchArgument(
         'orientation',
-        default_value='false',
+        default_value='true',
         description='Whether to compute orientation (true or false)'
     )
 
     declare_acceleration_arg = DeclareLaunchArgument(
         'acceleration',
-        default_value='true',
+        default_value='false',
         description='Whether to compute pg on acceleration (true or false)'
     )
 
