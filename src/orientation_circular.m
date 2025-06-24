@@ -120,8 +120,15 @@ dq_list = []; % to store joint velocities
 ddq_list = []; % to store joint accelerations
 phi_list = []; % to store orientation angles
 p_list = []; % to store end-effector positions
+dp_list = []; % to store end-effector velocities
+ddp_list = []; % to store end-effector accelerations
 error_list = []; % to store error norms
 
+qA_idx = [1,2,3,4,5,6]; % indices of joints in A (nonsingular)
+qB_idx = [7]; % indices of joints in B (N-M = 1)
+alpha = 1;
+damp = 2;
+use_RG = true; % use reduced gradient step if true, else use projected gradient step
 
 dt = 0.01; % time step
 t = 0.0;
@@ -135,6 +142,12 @@ disp("press any key to start the simulation...");
 pause; % wait for user input to start the simulation
 
 while t <= t_fin % run for a fixed time
+
+
+    %if t > T/2
+    %    qA_idx = [2,3,4,5,6,7]; % indices of joints in A (nonsingular)
+    %    qB_idx = [1]; % indices of joints in B (N-M = 1)
+    %end
 
     % Nominal Trajectory
     p_nom = double(subs(r_d_sym, t_sym, t)); % expected end-effector position at time t
@@ -165,10 +178,16 @@ while t <= t_fin % run for a fixed time
         dq_list = [dq_list, dq]; % store joint velocity
         ddq_list = [ddq_list, ddq]; % store joint acceleration
         p_list = [p_list, p]; % store end-effector position
+        dp_list = [dp_list, dp]; % store end-effector velocity
+        ddp_list = [ddp_list, ddp]; % store end-effector acceleration
         phi_list = [phi_list, phi]; % store orientation angles
 
-    % [!] PG step
-    ddq = proj_grad_step_acc(q, dq, ddp_nom, p_nom, dp_nom); % compute joint acceleration using projected gradient step
+    % [!] PG or RG step
+    if use_RG == true
+        ddq = reduced_grad_step_acc(q, dq, ddp_nom, qA_idx, qB_idx, p_nom, dp_nom, alpha, damp); % compute joint velocity using reduced gradient step
+    else
+        ddq = proj_grad_step_acc(q, dq, ddp_nom, p_nom, dp_nom); % compute joint acceleration using projected gradient step
+    end
     disp(['ddq = [', num2str(ddq'), ']']);
 
     % CHECK Limits
@@ -327,8 +346,7 @@ plot3(p_list(1, :), p_list(2, :), p_list(3, :), 'b-', 'LineWidth', 2);
 hold on;
 
 % Sample the nominal trajectory over time
-time_sample = 0:dt:t_fin;
-p_nominal_sampled = double(subs(p_d_sym, t_sym, time_sample));
+p_nominal_sampled = double(subs(p_d_sym, t_sym, time));
 p_nom_in = p_nominal_sampled(:, 1);
 p_nom_fin = p_nominal_sampled(:, end);
 
@@ -349,5 +367,38 @@ dx = R + 0.05;
 xlim([C(1) - dx, C(1) + dx])
 ylim([C(2) - dx, C(2) + dx])
 zlim([C(3) - dx, C(3) + dx])
+
+grid on;
+
+% plot of the norm of the velocity
+figure
+v_nominal_sampled = double(subs(r_dot_sym(1:3), t_sym, time));
+v_nom_norm = vecnorm(v_nominal_sampled);
+v_ee_norm = vecnorm(dp_list(1:3,:));
+
+plot(time, v_nom_norm, 'r--', 'LineWidth', 2);
+hold on
+plot(time, v_ee_norm, 'b-', 'LineWidth', 2);
+
+xlabel('Time (s)');
+ylabel('Velocity Norm (m/s)');
+title('Velocity Magnitude Over Time');
+legend('Nominal Velocity', 'End-Effector Velocity');
+
+grid on;
+
+% Acceleration
+figure
+a_nominal_sampled = double(subs(r_ddot_sym(1:3), t_sym, time));
+a_nom_norm = vecnorm(a_nominal_sampled);
+a_ee_norm = vecnorm(ddp_list(1:3,:));
+
+plot(time, a_nom_norm, 'r--', 'LineWidth', 2);
+hold on
+plot(time, a_ee_norm, 'b-', 'LineWidth', 2);
+xlabel('Time (s)');
+ylabel('Acceleration Norm (m/s^2)');
+title('Acceleration Magnitude Over Time');
+legend('Nominal Acceleration', 'End-Effector Acceleration');
 
 grid on;
