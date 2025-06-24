@@ -338,8 +338,6 @@ scatter3(p_nom_fin(1), p_nom_fin(2), p_nom_fin(3), 200, '^', 'MarkerFaceColor', 
 scatter3(p_sing(1), p_sing(2), p_sing(3), 300, 'x', 'MarkerEdgeColor', 'r', 'LineWidth', 2); % Singularity point in red
 scatter3(p_in(1), p_in(2), p_in(3), 200, 'o', 'MarkerFaceColor', 'b', 'MarkerEdgeColor', 'b'); % Start point: blue circle
 scatter3(p_fin(1), p_fin(2), p_fin(3), 200, '^', 'MarkerFaceColor', 'b', 'MarkerEdgeColor', 'b'); % End point: blue upward triangle
-
-
 xlabel('X Position (m)');
 ylabel('Y Position (m)');
 zlabel('Z Position (m)');
