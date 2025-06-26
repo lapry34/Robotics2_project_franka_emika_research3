@@ -9,7 +9,7 @@ addpath("./Plots/")
 
 %% GLOBALS
 N = 7; % number of joints
-T = 7; % total time for the trajectory [s]
+T = 18; % total time for the trajectory [s]
 
 %% LIMITS (from Docs)
 LIM_q_max       = [2.7437, 1.7837, 2.9007, -0.1518, 2.8065, 4.5169, 3.0159]'; % [rad]
@@ -56,7 +56,7 @@ C = [p_sing(1);
      p_sing(2);
      p_sing(3) - R];
 
-rep = 1;
+rep = 3;
 freq = rep/T; 
 %% DEFINING DESIRED TRAJECTORY 
 t_in = 0; % initial time [s]
@@ -68,8 +68,8 @@ tau = t_sym / T;
 
 s = 2* rep * pi * (6 * tau^5 - 15 * tau^4 + 10 * tau^3);
 
-p_x_t = C(1);
-p_y_t = C(2) + R * cos(s + gamma);
+p_x_t = C(1) + R * cos(s + gamma);
+p_y_t = C(2);
 p_z_t = C(3) + R * sin(s + gamma);
 
 p_d_sym = [p_x_t; p_y_t; p_z_t];
@@ -94,6 +94,8 @@ R_fin = R_in; % const. orientation
 
 phi_in = get_phi(R_in); % initial orientation angles
 phi_fin = get_phi(R_fin); % final orientation angles
+disp(['phi_in = ', num2str(rad2deg(phi_in'))]);
+disp(['phi_fin = ', num2str(rad2deg(phi_fin'))]);
 
 delta_phi = phi_fin - phi_in;
 phi_d_sym = vpa(phi_in + delta_phi * (6 * tau^5 - 15 * tau^4 + 10 * tau^3)); % quintic polynomial
@@ -128,7 +130,8 @@ qA_idx = [1,2,3,4,5,6]; % indices of joints in A (nonsingular)
 qB_idx = [7]; % indices of joints in B (N-M = 1)
 alpha = 1;
 damp = 2;
-use_RG = true; % use reduced gradient step if true, else use projected gradient step
+use_RG = false; % use reduced gradient step if true, else use projected gradient step
+use_accel = false; % use acceleration if true, else use velocity
 
 dt = 0.01; % time step
 t = 0.0;
@@ -160,18 +163,18 @@ while t <= t_fin % run for a fixed time
         J_dot = get_J_dot(q, dq, true); % compute current end-effector Jacobian and its time derivative
         phi = get_phi(get_R(q)); % get the orientation angles from the rotation matrix
 
-        min_singular = svds(J, 1, 'smallest');
-        disp(['Minimum singular value of J: ', num2str(min_singular)]);
+        %min_singular = svds(J, 1, 'smallest');
+        %disp(['Minimum singular value of J: ', num2str(min_singular)]);
 
         dp = J * dq;
         ddp = J * ddq + J_dot * dq; % compute current end-effector acceleration
         error = p_nom(1:3) - p(1:3); % compute error in end-effector position
         norm_e = double(norm(error));
         detJJtrans = det(J*J');
-        disp (['t = ', num2str(t), ' s, p = [', num2str(p'), '] dp = [', num2str(dp'), '] ddp = [', num2str(ddp_nom'), ']']);
-        disp( ['q = [', num2str(q'), ']']);
-        fprintf("det(J*J') = %.4f\n", detJJtrans);
-        disp(['norm error = ', num2str(norm_e)]);
+        %disp (['t = ', num2str(t), ' s, p = [', num2str(p'), '] dp = [', num2str(dp'), '] ddp = [', num2str(ddp_nom'), ']']);
+        %disp( ['q = [', num2str(q'), ']']);
+        %fprintf("det(J*J') = %.4f\n", detJJtrans);
+        %disp(['norm error = ', num2str(norm_e)]);
 
         error_list = [error_list, norm_e]; % store error norm for plotting later
         q_list = [q_list, q]; % store joint position
@@ -183,22 +186,29 @@ while t <= t_fin % run for a fixed time
         phi_list = [phi_list, phi]; % store orientation angles
 
     % [!] PG or RG step
-    if use_RG == true
-        ddq = reduced_grad_step_acc(q, dq, ddp_nom, qA_idx, qB_idx, p_nom, dp_nom, alpha, damp); % compute joint velocity using reduced gradient step
+    if use_accel == true
+        if use_RG == true
+            ddq = reduced_grad_step_acc(q, dq, ddp_nom, qA_idx, qB_idx, p_nom, dp_nom, alpha, damp); % compute joint velocity using reduced gradient step
+        else
+            ddq = proj_grad_step_acc(q, dq, ddp_nom, p_nom, dp_nom); % compute joint acceleration using projected gradient step
+        end
+        %disp(['ddq = [', num2str(ddq'), ']']);
+
+        % CHECK Limits
+        ddq = clamp_vec(ddq, -LIM_ddq_max, LIM_ddq_max); % clamp joint acceleration to max limits
+        %disp(['Clamped ddq = [', num2str(ddq'), ']']);
+
+        % compute dq
+        dq = dq + ddq * dt; % update joint velocity
+        %disp(['Clamped dq = [', num2str(dq'), ']']);
     else
-        ddq = proj_grad_step_acc(q, dq, ddp_nom, p_nom, dp_nom); % compute joint acceleration using projected gradient step
+        if use_RG == true
+            dq = reduced_grad_step(q, dp_nom, p_nom, qA_idx, qB_idx, alpha, damp); % compute joint velocity using reduced gradient step
+        else
+            dq = proj_grad_step(q, dp_nom, p_nom); % compute joint velocity using projected gradient step
+        end
     end
-    disp(['ddq = [', num2str(ddq'), ']']);
-
-    % CHECK Limits
-    ddq = clamp_vec(ddq, -LIM_ddq_max, LIM_ddq_max); % clamp joint acceleration to max limits
-    disp(['Clamped ddq = [', num2str(ddq'), ']']);
-
-    % compute dq
-    dq = dq + ddq * dt; % update joint velocity
     dq = clamp_vec(dq, -LIM_dq_max, LIM_dq_max); % clamp joint velocity to max limits
-    disp(['Clamped dq = [', num2str(dq'), ']']);
-
     q = q + dq * dt + 0.5*ddq*dt^2; % update joint position (integration step as in De Luca Paper)
     q = clamp_vec(q, LIM_q_min, LIM_q_max); % clamp joint position to limits
 
@@ -209,6 +219,7 @@ while t <= t_fin % run for a fixed time
     end
 
     t = t + dt; % update time 
+    fprintf("t = %.2f s\n", t);
 end
 
 
@@ -225,12 +236,12 @@ figure;
 % Plot end-effector position over time
 subplot(2, 1, 1);
 hold on;
-% time = 0:dt:t_fin-dt;
-if T > 2
-    time = 0:dt:t_fin; % time vector for plotting
-else
-    time = 0:dt:t_fin-dt; % time vector for plotting
-end
+time = 0:dt:t_fin-dt;
+%if T > 2
+%    time = 0:dt:t_fin; % time vector for plotting
+%else
+%    time = 0:dt:t_fin-dt; % time vector for plotting
+%end
 
 
 plot(time, p_list(1, :), 'b', 'DisplayName', 'Real Position (X)');
