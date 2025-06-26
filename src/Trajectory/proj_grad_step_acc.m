@@ -37,8 +37,8 @@ function ddq = proj_grad_step_acc(q, dq, ddr, p_d, dp_d)
         p = get_p(q, orientation); % end-effector position
         e = p_d - p; % error vector
         e_dot = dp_d - J * dq; % error derivative
-        Kp = 10*eye(length(e)); % proportional gain matrix
-        Kd = 5*eye(length(e)); % derivative gain matrix
+        Kp = 5*eye(length(e)); % proportional gain matrix
+        Kd = 2*eye(length(e)); % derivative gain matrix
         PD_control = Kp * e + Kd * e_dot; % PD control term
     end
 

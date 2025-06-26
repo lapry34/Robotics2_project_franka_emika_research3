@@ -100,7 +100,7 @@ disp(['phi_fin = ', num2str(rad2deg(phi_fin'))]);
 delta_phi = phi_fin - phi_in;
 phi_d_sym = vpa(phi_in + delta_phi * (6 * tau^5 - 15 * tau^4 + 10 * tau^3)); % quintic polynomial
 
-r_d_sym = vpa([p_d_sym; phi_d_sym])
+r_d_sym = vpa([p_d_sym; phi_d_sym]);
 r_dot_sym = diff(r_d_sym, t_sym);  % firt der
 r_ddot_sym = diff(r_dot_sym, t_sym); % second der
 
@@ -141,13 +141,28 @@ ddq = zeros(N, 1); % initialize joint acceleration
 
 t_sing = 0;
 
+
+if ~use_accel
+    disp("Using velocity control (no acceleration)");
+else
+    disp("Using acceleration control");
+end
+if use_RG
+    disp("Using Reduced Gradient Step");
+else
+    disp("Using Projected Gradient Step");
+end
 disp("press any key to start the simulation...");
 pause; % wait for user input to start the simulation
 
 while t <= t_fin % run for a fixed time
 
-
-    if t > T/2
+    % Switch indices based on which half of each repetition we're in
+    rep_progress = mod(t * freq, 1); % progress within current repetition (0 to 1)
+    if rep_progress < 0.5
+        qA_idx = [1,2,3,4,5,6]; % indices of joints in A (nonsingular)
+        qB_idx = [7]; % indices of joints in B (N-M = 1)
+    else
         qA_idx = [1,2,3,4,5,7]; % indices of joints in A (nonsingular)
         qB_idx = [6]; % indices of joints in B (N-M = 1)
     end
@@ -203,7 +218,7 @@ while t <= t_fin % run for a fixed time
         %disp(['Clamped dq = [', num2str(dq'), ']']);
     else
         if use_RG == true
-            dq = reduced_grad_step(q, dp_nom, p_nom, qA_idx, qB_idx, alpha, damp); % compute joint velocity using reduced gradient step
+            dq = reduced_grad_step(q, dp_nom, qA_idx, qB_idx, p_nom); % compute joint velocity using reduced gradient step
         else
             dq = proj_grad_step(q, dp_nom, p_nom); % compute joint velocity using projected gradient step
         end
@@ -236,12 +251,16 @@ figure;
 % Plot end-effector position over time
 subplot(2, 1, 1);
 hold on;
-time = 0:dt:t_fin-dt;
-%if T > 2
-%    time = 0:dt:t_fin; % time vector for plotting
-%else
-%    time = 0:dt:t_fin-dt; % time vector for plotting
-%end
+if T > 2
+    if T < 16
+        time = 0:dt:t_fin;
+    else
+        time = 0:dt:t_fin-dt; % time vector for plotting
+    end
+    time = 0:dt:t_fin-dt; % time vector for plotting
+else
+
+end
 
 
 plot(time, p_list(1, :), 'b', 'DisplayName', 'Real Position (X)');
