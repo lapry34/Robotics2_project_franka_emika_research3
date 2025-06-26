@@ -4,21 +4,27 @@ from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64MultiArray, MultiArrayDimension
 import numpy as np
+import matplotlib.pyplot as plt
+import os
 
 class ProjectedGradientController(Node):
     def __init__(self):
         super().__init__('projected_gradient_ori_controller')
         self.N = 7           # number of joints
+        self.img_path = '/home/kristoj/Documents/franka_ros2_ws/imgs/'
 
         # Parameters
         self.declare_parameter('T', 3.0)  # Trajectory duration
         self.declare_parameter('dt', 0.01)  # Control loop period
         self.declare_parameter('orientation', False)  # Whether to compute orientation Jacobian
         self.declare_parameter('is_RG', False)  # Whether to compute reduced gradient ro projected gradient
+        self.declare_parameter('circular', False)  # Whether to use circular trajectory
+
         self.T = self.get_parameter('T').get_parameter_value().double_value
         self.dt = self.get_parameter('dt').get_parameter_value().double_value
         self.orientation = self.get_parameter('orientation').get_parameter_value().bool_value
         self.is_RG = self.get_parameter('is_RG').get_parameter_value().bool_value
+        self.circular = self.get_parameter('circular').get_parameter_value().bool_value
 
         # Joint limits
         self.LIM_q_max = np.array([ 2.7437,  1.7837,  2.9007, -0.1518,  2.8065,  4.5169,  3.0159])
@@ -35,19 +41,26 @@ class ProjectedGradientController(Node):
         # Select a singular configuration (example values)
         # self.q_sing = np.array([np.pi/3, 0, -np.pi/2, -np.pi/3, np.pi/2, np.pi/5, -np.pi/5])
 
-        # Simulation values from MATLAB
-        self.r_start = np.array([0.36464, -0.055694, 0.79503, 3.1045, 0.5075, 0.1272])
-        self.r_end = np.array([0.36464, -0.055694, 0.99503, 1.8823, 0.7, 1.29789])
+        if self.circular:
+            p_sing = np.array([0.364637, -0.055694, 0.895027])
+            self.radius = 0.20
+            self.C = np.array([p_sing[0], p_sing[1], p_sing[2] - self.radius])
 
-        if not self.orientation:
-            self.r_start = self.r_start[:3]
-            self.r_end = self.r_end[:3]
+            self.phi_start = np.array([-np.pi/2, 0.0, -np.pi/2])
+            self.gamma = -np.pi/2
 
-        self.q = np.array([-0.028095, -0.27994, -0.061667, -1.8035, -0.0083122, 1.7527, 0])
-        self.dq = np.zeros(self.N)
+            self.rep = 3
+        else:
+            # Simulation values from MATLAB
+            self.r_start = np.array([0.36464, -0.055694, 0.79503, 3.1045, 0.5075, 0.1272])
+            self.r_end = np.array([0.36464, -0.055694, 0.99503, 1.8823, 0.7, 1.29789])
 
-        # Trajectory delta
-        self.delta_r = self.r_end - self.r_start
+            if not self.orientation:
+                self.r_start = self.r_start[:3]
+                self.r_end = self.r_end[:3]
+        
+            # Trajectory delta
+            self.delta_r = self.r_end - self.r_start
 
         # Time
         self.t = 0.0
@@ -61,16 +74,19 @@ class ProjectedGradientController(Node):
         self.pose = np.zeros((self.rows, ))  # Placeholder for end-effector pose
         self.grad_H = np.zeros((self.N, ))  # Placeholder for gradient of manipulability measure
 
-        # J_a and J_b column indices for reduced gradient
-        if self.orientation:
-            self.qA_idx = np.array([0,1,2,3,4,5])
-            self.qB_idx = np.array([6])
-        else:
-            self.qA_idx = np.array([1,3,4])
-            self.qB_idx = np.array([0,2,5,6])
 
-        # Subscribe to Jacobian and position topics
+        # iteration counter for plotting
+        self.it = 0
+        self.array_of_q = []  # Store joint positions for plotting
+        self.array_of_dq = []  # Store joint velocities for plotting
+
+        # delete all previous plots
+        for file in os.listdir(self.img_path):
+            if file.endswith('.png'):
+                os.remove(os.path.join(self.img_path, file))
+
         
+        # Subscribe to Jacobian and position topics
         if self.orientation:
             self.create_subscription(
                 Float64MultiArray,
@@ -111,8 +127,8 @@ class ProjectedGradientController(Node):
         # Publisher
         self.joint_pub = self.create_publisher(JointState, 'joint_states', 10)
 
-        # publish initial joint state
-        self.publish_joint_state()
+        # reset joint state
+        self.reset()
 
         # Timer for control loop
         self.timer = self.create_timer(self.dt, self.control_callback)
@@ -121,23 +137,11 @@ class ProjectedGradientController(Node):
     def control_callback(self):
         if self.t > self.t_fin:
             self.get_logger().info('Trajectory complete, shutting down.')
-            self.t = 0.0
-            self.q = np.array([-0.028095, -0.27994, -0.061667, -1.8035, -0.0083122, 1.7527, 0])
-            self.dq = np.zeros(self.N)
-
-            # J_a and J_b column indices for reduced gradient
-            if self.orientation:
-                self.qA_idx = np.array([0,1,2,3,4,5])
-                self.qB_idx = np.array([6])
-            else:
-                self.qA_idx = np.array([1,3,4])
-                self.qB_idx = np.array([0,2,5,6])
-
-            self.publish_joint_state()
+            self.reset()
             self.get_logger().info('Resetting trajectory.')
             return
 
-        if self.is_RG and self.t > self.T / 2:
+        if not self.circular and self.is_RG and self.t > self.T / 2:
             if self.orientation:
                 self.qA_idx = np.array([1,2,3,4,5,6])
                 self.qB_idx = np.array([0])
@@ -151,10 +155,7 @@ class ProjectedGradientController(Node):
         ds  = (30*tau**4 - 60*tau**3 + 30*tau**2) / self.T
         dds = (120*tau**3 - 180*tau**2 + 60*tau) / self.T**2
 
-        # Nominal task-space trajectory
-        r_nom  = self.r_start + self.delta_r * s
-        dr_nom = self.delta_r * ds
-        ddr_nom = self.delta_r * dds
+        r_nom, dr_nom, ddr_nom = self.get_reference_trajectory(s, ds, dds)
 
         if self.is_RG:
             # Reduced Gradient step (stub)
@@ -175,6 +176,45 @@ class ProjectedGradientController(Node):
 
         self.t += self.dt
 
+
+
+    def get_reference_trajectory(self, s, ds, dds):
+        if self.circular:
+            # Circular trajectory
+            twopi = 2 * np.pi * self.rep
+            s *= twopi
+            ds *= twopi
+            dds *= twopi
+
+            r_nom = np.array([
+                self.C[0]  + self.radius * np.cos(s + self.gamma) ,
+                self.C[1],
+                self.C[2] + self.radius * np.sin(s + self.gamma),
+            ])
+            dr_nom = np.array([
+                -self.radius * np.sin(s + self.gamma) * ds,
+                0,
+                self.radius * np.cos(s + self.gamma) * ds,
+            ])
+            ddr_nom = np.array([
+                -self.radius * np.cos(s + self.gamma) * ds**2 - self.radius * np.sin(s + self.gamma) * dds,
+                0,
+                -self.radius * np.sin(s + self.gamma) * ds**2 + self.radius * np.cos(s + self.gamma) * dds,
+            ])
+
+            if self.orientation:
+                r_nom = np.hstack([r_nom, self.phi_start])
+                dr_nom = np.hstack([dr_nom, np.zeros(3)])
+                ddr_nom = np.hstack([ddr_nom, np.zeros(3)])
+
+        else:
+            # # Nominal task-space trajectory
+            r_nom  = self.r_start + self.delta_r * s
+            dr_nom = self.delta_r * ds
+            ddr_nom = self.delta_r * dds
+        
+        return r_nom, dr_nom, ddr_nom
+    
 
     def proj_grad_step_acc(self, dq, ddr, p_d, dp_d):
 
@@ -197,7 +237,7 @@ class ProjectedGradientController(Node):
         e = p_d - pose
         e_dot = dp_d - J.dot(dq)
         Kp = 10 * np.eye(self.rows)
-        Kd = 5 * np.eye(self.rows)
+        Kd = 20 * np.eye(self.rows)
         PD_control = Kp.dot(e) + Kd.dot(e_dot)
 
         # Projected gradient update
@@ -229,8 +269,8 @@ class ProjectedGradientController(Node):
 
         e = p_d - pose
         e_dot = dp_d - J.dot(dq)
-        Kp = 10 * np.eye(self.rows)
-        Kd = 5 * np.eye(self.rows)
+        Kp = 0 * np.eye(self.rows)
+        Kd = 0.0 * np.eye(self.rows)
         PD_control = Kp.dot(e) + Kd.dot(e_dot)
 
         ddq_b = grad_H_b_prime  # joint velocities for B
@@ -263,14 +303,80 @@ class ProjectedGradientController(Node):
         self.grad_H = np.array(msg.data)
 
 
+
     def publish_joint_state(self):
+
+        # Store joint positions and velocities for plotting
+        self.array_of_q.append(self.q.copy())
+        self.array_of_dq.append(self.dq.copy())
+
+        # Create JointState message
         js = JointState()
         js.header.stamp = self.get_clock().now().to_msg()
         js.name = self.joint_names
         js.position = self.q.tolist()
         js.velocity = self.dq.tolist()
-        self.get_logger().info(f'Publishing joint state: {js.velocity}')
         self.joint_pub.publish(js)
+
+    def reset(self):
+
+        self.plot_joints()
+        
+        self.t = 0.0
+
+        if self.circular:
+            self.q = np.array([-0.151744, -0.508092, -0.154674, -2.458706, -0.032223, 1.448057, 0.000000]) # with error
+            # self.q = np.array([-0.0698, -0.4768, -0.0714, -2.3262, -0.0126, 1.5190, 0.000000]) # no error
+        else:
+            self.q = np.array([-0.028095, -0.27994, -0.061667, -1.8035, -0.0083122, 1.7527, 0]) # with error
+            # self.q = np.array([-0.0562, -0.5599, -0.061667, -1.8035, -0.0083122, 1.7527, 0]) # no error
+
+        self.dq = np.zeros(self.N)
+        
+        # J_a and J_b column indices for reduced gradient
+        if self.is_RG:
+            if self.orientation:
+                # self.qA_idx = np.array([0,1,2,3,4,5])
+                # self.qB_idx = np.array([6])
+                self.qA_idx = np.array([0,1,3,4,5,6])
+                self.qB_idx = np.array([2])
+            else:
+                # self.qA_idx = np.array([1,3,4])
+                # self.qB_idx = np.array([0,2,5,6])
+                self.qA_idx = np.array([0,1,3])
+                self.qB_idx = np.array([2,4,5,6])
+
+        self.publish_joint_state()
+
+
+    def plot_joints(self):
+        if not self.array_of_q:
+            return  # No data to plot
+        # save plots 
+        plt.figure(figsize=(10, 6))
+        for i in range(len(self.joint_names)):
+            plt.plot(np.array(self.array_of_q)[:, i], label=self.joint_names[i])
+        plt.title('Joint Positions Over Time')
+        plt.xlabel('Time Steps')
+        plt.ylabel('Joint Position (rad)')
+        plt.legend()
+        plt.grid()
+        plt.savefig(f'{self.img_path}joint_positions_over_time_{self.it}.png')
+
+        # save plots 
+        plt.figure(figsize=(10, 6))
+        for i in range(len(self.joint_names)):
+            plt.plot(np.array(self.array_of_dq)[:, i], label=self.joint_names[i])
+        plt.title('Joint velocities Over Time')
+        plt.xlabel('Time Steps')
+        plt.ylabel('Joint velocitie (rad)')
+        plt.legend()
+        plt.grid()
+        plt.savefig(f'{self.img_path}joint_velocities_over_time_{self.it}.png')
+
+        self.it += 1
+        self.array_of_q = []
+        self.array_of_dq = []
 
 
 def main(args=None):

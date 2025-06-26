@@ -20,6 +20,7 @@ Note:
   Requires `urdf_parser_py` and `kdl_parser_py` for parsing the URDF into a KDL chain,
   and `PyKDL` for Jacobian computation.
 """
+from typing import List
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
@@ -28,6 +29,9 @@ import PyKDL
 from kdl_parser_py.urdf import treeFromUrdfModel
 from std_msgs.msg import Float64MultiArray, MultiArrayDimension
 import numpy as np
+from visualization_msgs.msg import Marker
+from geometry_msgs.msg import Point
+
 
 class JacobianComputation(Node):
     def __init__(self):
@@ -100,6 +104,31 @@ class JacobianComputation(Node):
         if self.acceleration:
             self.jac_dot_pub = self.create_publisher(Float64MultiArray, 'jacobian_dot', 10)
 
+
+        # .....................................................................................
+        # Publishers for RViz markers
+        self.traj_marker_pub = self.create_publisher(Marker, 'ee_trajectory', 10)
+
+        # Keep a history of end‐effector points
+        self.ee_history: List[Point] = []
+
+        # Pre‐configure the trajectory marker as POINTS instead of LINE_STRIP
+        self.traj_marker = Marker()
+        self.traj_marker.header.frame_id = base_link
+        self.traj_marker.ns = "ee_trajectory"
+        self.traj_marker.id = 1
+        self.traj_marker.type = Marker.POINTS
+        self.traj_marker.action = Marker.ADD
+
+        # For POINTS, you set both x and y scale to control point size:
+        self.traj_marker.scale.x = 0.01  # point width (meters)
+        self.traj_marker.scale.y = 0.01  # point height (meters)
+
+        self.traj_marker.color.r = 0.0
+        self.traj_marker.color.g = 1.0
+        self.traj_marker.color.b = 0.0
+        self.traj_marker.color.a = 0.5
+
         # Log initialization
         self.get_logger().info('JacobianComputer initialized')
 
@@ -122,6 +151,7 @@ class JacobianComputation(Node):
             R = np.array([[end_frame.M[i, j] for j in range(3)] for i in range(3)])  # TODO: can be sped up
 
             phi = self._get_phi(R)
+            # self.get_logger().info(f"Computed Euler angles: {phi* 180/np.pi} degrees")
             J_task = self._get_task_J(self.J_geom, phi)
 
             pose = np.concatenate((p, phi))
@@ -136,13 +166,29 @@ class JacobianComputation(Node):
             self._publish_matrix(self.jac_dot_pub, self.J_dot)
 
 
+        ee_pt = Point(x=float(p[0]), y=float(p[1]), z=float(p[2]))
+        self.ee_history.append(ee_pt)
+        if len(self.ee_history) > 5000:
+            self.ee_history.pop(0)
+
+        self.traj_marker.header.stamp = self.get_clock().now().to_msg()
+        # assign the list of points directly:
+        self.traj_marker.points = list(self.ee_history)
+        self.traj_marker_pub.publish(self.traj_marker)
+
         
         if self.dbg:
-            self.get_logger().info(f"Received joint states: {msg.position}")
-            if self.orientation:
-                self.get_logger().info(f"Jacobian computed:\n{J_task}\n\n\n")
-            else:
-                self.get_logger().info(f"Jacobian computed:\n{self.J_geom}\n\n\n")
+            # self.get_logger().info(f"Received joint states: {msg.position}")
+            # if self.orientation:
+            #     self.get_logger().info(f"Jacobian computed:\n{J_task}\n\n\n")
+            # else:
+            #     self.get_logger().info(f"Jacobian computed:\n{self.J_geom}\n\n\n")
+        
+            # E = self._get_E(phi) 
+            # E_inv = np.linalg.inv(E)
+            # self.get_logger().info(f"Computed E:\n{E}\n")
+            # self.get_logger().info(f"Computed E_inv:\n{E_inv}\n\n\n")
+            # self.get_logger().info("-"*30)
 
             self.dbg = False
 
