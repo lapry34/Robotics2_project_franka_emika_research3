@@ -153,7 +153,7 @@ while t < t_fin % run for a fixed time
     p_list = [p_list, p]; % store end-effector position
     phi_list = [phi_list, phi]; % store orientation angles
     % [!] PG step
-    q_dot = proj_grad_step(q, r_dot_nom, r_d_nom); % compute joint velocity using projected gradient step
+    q_dot = proj_grad_step(q, r_dot_nom, r_d_nom, 4); % compute joint velocity using projected gradient step
     q_dot = double(q_dot);
 
     if print_info == true

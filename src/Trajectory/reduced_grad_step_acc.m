@@ -1,4 +1,4 @@
-function ddq = reduced_grad_step_acc(q, dq, ddr, qA_idx, qB_idx, p_d, dp_d, alpha, damp)
+function ddq = reduced_grad_step_acc(q, dq, ddr, qA_idx, qB_idx, p_d, dp_d, alpha, damp, Kp, Kd)
     % J is the Jacobian of the constraint function r(q)
     % dr is the change in r, which is a vector
     % dt is the time step for the update
@@ -49,8 +49,6 @@ function ddq = reduced_grad_step_acc(q, dq, ddr, qA_idx, qB_idx, p_d, dp_d, alph
         p = get_p(q, orientation); % end-effector position
         e = p_d - p; % error vector
         e_dot = dp_d - J * dq; % error derivative
-        Kp = 10*eye(length(e)); % proportional gain matrix
-        Kd = 5*eye(length(e)); % derivative gain matrix
         PD_control = Kp * e + Kd * e_dot; % PD control term
     end
 

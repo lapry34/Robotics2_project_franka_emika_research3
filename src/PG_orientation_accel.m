@@ -157,7 +157,7 @@ while t < t_fin % run for a fixed time
     p_list = [p_list, p]; % store end-effector position
     phi_list = [phi_list, phi]; % store orientation angles
     % [!] PG step
-    q_ddot = proj_grad_step_acc(q, q_dot, r_ddot_nom, r_d_nom, r_dot_nom);
+    q_ddot = proj_grad_step_acc(q, q_dot, r_ddot_nom, r_d_nom, r_dot_nom, 10, 5);
     q_ddot = double(q_ddot);
 
     if print_info == true

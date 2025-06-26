@@ -203,9 +203,9 @@ while t <= t_fin % run for a fixed time
     % [!] PG or RG step
     if use_accel == true
         if use_RG == true
-            ddq = reduced_grad_step_acc(q, dq, ddp_nom, qA_idx, qB_idx, p_nom, dp_nom, alpha, damp); % compute joint velocity using reduced gradient step
+            ddq = reduced_grad_step_acc(q, dq, ddp_nom, qA_idx, qB_idx, p_nom, dp_nom, alpha, damp,5,5); % compute joint velocity using reduced gradient step
         else
-            ddq = proj_grad_step_acc(q, dq, ddp_nom, p_nom, dp_nom); % compute joint acceleration using projected gradient step
+            ddq = proj_grad_step_acc(q, dq, ddp_nom, p_nom, dp_nom, 5,5); % compute joint acceleration using projected gradient step
         end
         %disp(['ddq = [', num2str(ddq'), ']']);
 
@@ -218,9 +218,9 @@ while t <= t_fin % run for a fixed time
         %disp(['Clamped dq = [', num2str(dq'), ']']);
     else
         if use_RG == true
-            dq = reduced_grad_step(q, dp_nom, qA_idx, qB_idx, p_nom); % compute joint velocity using reduced gradient step
+            dq = reduced_grad_step(q, dp_nom, qA_idx, qB_idx, p_nom,2); % compute joint velocity using reduced gradient step
         else
-            dq = proj_grad_step(q, dp_nom, p_nom); % compute joint velocity using projected gradient step
+            dq = proj_grad_step(q, dp_nom, p_nom, 2); % compute joint velocity using projected gradient step
         end
     end
     dq = clamp_vec(dq, -LIM_dq_max, LIM_dq_max); % clamp joint velocity to max limits

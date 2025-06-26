@@ -1,4 +1,4 @@
-function dq = proj_grad_step(q, dr, p_d)
+function dq = proj_grad_step(q, dr, p_d, Kp)
     % J is the Jacobian of the constraint function r(q)
     % dr is the change in r, which is a vector
     % dt is the time step for the update
@@ -34,7 +34,6 @@ function dq = proj_grad_step(q, dr, p_d)
 
     p = get_p(q, orientation); % end-effector position
     e = p_d - p; % error vector
-    Kp = 3*eye(length(e)); % proportional gain matrix
     
     %dq = pinv_J * (dr + Kp * e) + (eye(length(q)) - pinv_J * J) * grad_H;
     dq = grad_H + pinv_J * (dr - J * grad_H + Kp*e); % faster version

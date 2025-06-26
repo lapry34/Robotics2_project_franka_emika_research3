@@ -165,7 +165,7 @@ while t <= t_fin % run for a fixed time
     p_list = [p_list, p]; % store end-effector position
     phi_list = [phi_list, phi]; % store orientation angles
     % [!] RG step
-    q_dot = reduced_grad_step(q, r_dot_nom, qA_idx, qB_idx, r_d_nom);
+    q_dot = reduced_grad_step(q, r_dot_nom, qA_idx, qB_idx, r_d_nom, 10);
     q_dot = double(q_dot);
 
     if print_info == true

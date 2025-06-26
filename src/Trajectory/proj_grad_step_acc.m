@@ -1,4 +1,4 @@
-function ddq = proj_grad_step_acc(q, dq, ddr, p_d, dp_d)
+function ddq = proj_grad_step_acc(q, dq, ddr, p_d, dp_d, Kp, Kd)
     % J is the Jacobian of the constraint function r(q)
     % dr is the change in r, which is a vector
     % dt is the time step for the update
@@ -37,8 +37,6 @@ function ddq = proj_grad_step_acc(q, dq, ddr, p_d, dp_d)
         p = get_p(q, orientation); % end-effector position
         e = p_d - p; % error vector
         e_dot = dp_d - J * dq; % error derivative
-        Kp = 5*eye(length(e)); % proportional gain matrix
-        Kd = 2*eye(length(e)); % derivative gain matrix
         PD_control = Kp * e + Kd * e_dot; % PD control term
     end
 

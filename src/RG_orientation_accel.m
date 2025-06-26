@@ -175,7 +175,7 @@ while t < t_fin % run for a fixed time
     p_list = [p_list, p]; % store end-effector position
     phi_list = [phi_list, phi]; % store orientation angles
     % [!] RG step
-    q_ddot = reduced_grad_step_acc(q, q_dot, r_ddot_nom, qA_idx, qB_idx, r_d_nom, r_dot_nom, alpha, damp); % compute joint velocity using reduced gradient step
+    q_ddot = reduced_grad_step_acc(q, q_dot, r_ddot_nom, qA_idx, qB_idx, r_d_nom, r_dot_nom, alpha, damp, 10, 5); % compute joint velocity using reduced gradient step
     if print_info == true
         disp(['ddq (before clamping) = [', num2str(ddq'), ']']);
     end

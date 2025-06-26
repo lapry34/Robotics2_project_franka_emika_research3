@@ -1,4 +1,4 @@
-function dq = reduced_grad_step(q, dr, qA_idx, qB_idx, p_d)
+function dq = reduced_grad_step(q, dr, qA_idx, qB_idx, p_d, Kp)
     % J is the Jacobian of the constraint function r(q)
     % dr is the change in r, which is a vector
     % dt is the time step for the update
@@ -49,7 +49,6 @@ function dq = reduced_grad_step(q, dr, qA_idx, qB_idx, p_d)
 
     p = get_p(q, orientation); % end-effector position
     e = p_d - p; % error vector
-    Kp = 10*eye(length(e)); % proportional gain matrix
 
     dq_b = grad_H_b_prime;
     dq_a = J_a_inv * (dr -J_b*dq_b + Kp*e); % joint velocities for A (N_a x 1)

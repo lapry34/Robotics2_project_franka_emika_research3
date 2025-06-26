@@ -141,7 +141,7 @@ while t < t_fin % run for a fixed time
         p_list = [p_list, p]; % store end-effector position
     
     % [!] RG step
-    ddq = reduced_grad_step_acc(q, dq, ddp_nom, qA_idx, qB_idx, p_nom, dp_nom, alpha, damp); % compute joint velocity using reduced gradient step
+    ddq = reduced_grad_step_acc(q, dq, ddp_nom, qA_idx, qB_idx, p_nom, dp_nom, alpha, damp,10,5); % compute joint velocity using reduced gradient step
     disp(['ddq = [', num2str(ddq'), ']']);
 
     % CHECK Limits

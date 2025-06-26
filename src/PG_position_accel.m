@@ -129,7 +129,7 @@ while t < t_fin % run for a fixed time
         p_list = [p_list, p]; % store end-effector position
     
     % [!] PG step
-    ddq = proj_grad_step_acc(q, dq, ddp_nom, p_nom, dp_nom); % compute joint acceleration using projected gradient step
+    ddq = proj_grad_step_acc(q, dq, ddp_nom, p_nom, dp_nom,10,5); % compute joint acceleration using projected gradient step
     disp(['ddq = [', num2str(ddq'), ']']);
 
     % CHECK Limits
