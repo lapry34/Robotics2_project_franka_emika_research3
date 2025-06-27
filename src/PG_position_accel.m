@@ -159,9 +159,9 @@ fprintf("Norm of final error: %.4f\n", norm(fin_err))
 
 
 
-% plot joint over time
+%% plot joint over time
 disp("Simulation finished. Plotting results...");
-
+t_sing = T/2;
 plot_all(   N, T, ...
             dt, t_fin, t_sym, t_sing, ...
             p_list, p_start, p_end, p_sing, p_d_sym, ...
@@ -170,3 +170,16 @@ plot_all(   N, T, ...
             1, ... % want_acc_orient = 1 (plot accelerations)
             ddq_list ...
 )
+%% Moving the figures
+save_imgs_path = "figures\PG_position_acceleration\";
+if ~exist(save_imgs_path, 'dir')
+    mkdir(save_imgs_path);
+end
+
+png_files = dir("*.png");
+
+for k = 1:length(png_files)
+    source_file = png_files(k).name;
+    movefile(source_file, fullfile(save_imgs_path, source_file));
+end
+close all;

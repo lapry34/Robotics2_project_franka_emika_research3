@@ -1,16 +1,42 @@
-function plotJointAcceleration(time, ddq_list, LIM_ddq_max, N)
-    % Plots joint Accelerations with bounds
-    figure('Name', 'Joint Accelerations', 'NumberTitle', 'off');
+function plotJointAcceleration(time, ddq_list, N)
+
+    fig = figure('Name', 'Joint Accelerations', ...
+                 'NumberTitle', 'off', ...
+                 'Position', [100, 100, 900, 900]);
+
     for i = 1:N
-        subplot(N, 1, i);
-        plot(time, ddq_list(i, :), 'b', 'DisplayName', ['q', num2str(i), ' Acceleration']);
+        ax = subplot(N, 1, i);
+
+%         yline(LIM_ddq_max(i), 'r--', 'LineWidth', 2, ...
+%               'DisplayName', ['$\ddot{q}_{', num2str(i), ',\mathrm{max}}$']);
+%         hold on;
+%         yline(-LIM_ddq_max(i), 'r:', 'LineWidth', 2, ...
+%               'DisplayName', ['$\ddot{q}_{', num2str(i), ',\mathrm{min}}$']);
+
+        plot(time, ddq_list(i, :), 'b', 'LineWidth', 2.5, ...
+             'DisplayName', ['$\ddot{q}_{', num2str(i), '}$']);
         hold on;
-        yline(LIM_ddq_max(i), 'r--', 'DisplayName', ['q', num2str(i), ' Max']);
-        yline(-LIM_ddq_max(i), 'g--', 'DisplayName', ['q', num2str(i), ' Min']);
-        xlabel('Time (s)');
-        ylabel(['q', num2str(i)]);
-        title(['Joint ', num2str(i), ' Acceleration (rad/s^2) Over Time']);
+        if i == N
+            xlabel('Time (s)', 'FontSize', 14);
+        else
+            set(gca, 'XTickLabel', []);
+        end
+
+        ylabel(['$\ddot{q}_{', num2str(i), '}$ (rad/s$^2$)'], ...
+               'FontSize', 14, 'Interpreter', 'latex');
+
         grid on;
-        legend;
+        ylim([-4, 4]);
+        set(gca, 'FontSize', 14);
+
+        lgd = legend(ax, 'Location', 'eastoutside');
+        lgd.Box = 'off';
+        lgd.FontSize = 14;
+        lgd.Interpreter = 'latex';
     end
+
+    sgtitle('Joint accelerations over time', ...
+            'FontSize', 16, 'FontWeight', 'bold');
+        
+    exportgraphics(fig, 'JointAccelerations.png', 'Resolution', 300);
 end

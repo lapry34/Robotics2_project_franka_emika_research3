@@ -188,7 +188,7 @@ fprintf("Norm of final error: %.4f\n", norm(fin_err))
 %% PLOT OF THE RESULTS
 % plot joint over time
 disp("Simulation finished. Plotting results...");
-
+t_sing = T/2;
 plot_all(   N, T, ...
             dt, t_fin, t_sym, t_sing, ...
             p_list, p_in, p_fin, p_sing, r_d_sym, ...
@@ -198,3 +198,19 @@ plot_all(   N, T, ...
             [], ... % ddq_list not needed for orientation plot
             phi_list, r_d_sym ...
 )
+
+
+%% Moving the figures
+save_imgs_path = "figures\PG_orientation\";
+if ~exist(save_imgs_path, 'dir')
+    mkdir(save_imgs_path);
+end
+
+png_files = dir("*.png");
+
+for k = 1:length(png_files)
+    source_file = png_files(k).name;
+    movefile(source_file, fullfile(save_imgs_path, source_file));
+end
+
+close all;

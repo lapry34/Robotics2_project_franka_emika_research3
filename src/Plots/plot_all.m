@@ -61,7 +61,7 @@ function plot_all(  N, T, ...
     plot3dMotion(p_list,p_start,p_end,p_sing,dt, true);
 
     if want_acc_orient == 1 || want_acc_orient == 3
-        plotJointAcceleration(time, ddq_list, LIM_dq_max, N);
+        plotJointAcceleration(time, ddq_list, N);
     end
     if want_acc_orient == 2 || want_acc_orient == 3
         plotEulerAngles(time, phi_list, r_d_sym, t_sym)

@@ -159,7 +159,7 @@ fprintf("Norm of final error: %.4f\n", norm(fin_err))
 
 
 
-% plot joint over time
+%% Plot joint over time
 disp("Simulation finished. Plotting results...");
 
 figure;
@@ -177,3 +177,16 @@ plot_all(   N, T, ...
             q_list, dq_list, error_list, ...
             LIM_dq_max, LIM_q_max, LIM_q_min ...
 )
+%% Moving the figures
+save_imgs_path = "figures\RG_position\";
+if ~exist(save_imgs_path, 'dir')
+    mkdir(save_imgs_path);
+end
+
+png_files = dir("*.png");
+
+for k = 1:length(png_files)
+    source_file = png_files(k).name;
+    movefile(source_file, fullfile(save_imgs_path, source_file));
+end
+close all;
