@@ -129,9 +129,9 @@ qB_idx = [7]; % indices of joints in B (N-M = 1)
 alpha = 1;
 damp = 2;
 use_RG = false; % use reduced gradient step if true, else use projected gradient step
-use_accel = true; % use acceleration if true, else use velocity
+use_accel = false; % use acceleration if true, else use velocity
 
-dt = 0.001; % time step
+dt = 0.01; % time step
 t = 0.0;
 q = q_in; % initialize joint position
 dq = zeros(N, 1); % initialize joint velocity
@@ -264,7 +264,8 @@ end
 %% PLOT OF THE RESULTS
 % plot joint over time
 disp("Simulation finished. Plotting results...");
-t_sing = [T/6, T/2, 5*T/6];
+t_sing = T/6;
+
 
 if use_accel == true
     plot_all(   N, T, ...
@@ -295,7 +296,7 @@ plotNormAcceleration(time, ddp_list, r_ddot_sym, t_sym)
 %%
 
 % After computing p_start and p_end, add this in the plotting section:
-fig = figure;
+figure
 plot3(p_list(1, :), p_list(2, :), p_list(3, :), 'b-', 'LineWidth', 2);
 hold on;
 
@@ -324,9 +325,6 @@ zlim([C(3) - dx, C(3) + dx])
 
 grid on;
 exportgraphics(fig, 'EndEffector3D.png', 'Resolution', 300);
-
-
-
 close all;
 
 %% Moving the figures
@@ -338,14 +336,12 @@ else
 end
 
 if use_accel == true
-    acc_flag = "_acceleration";
+    acc_flag = "acceleration";
 else 
     acc_flag = "";
 end
 
-% Usa filesep per compatibilità multipiattaforma
-save_imgs_path = fullfile("figures", method + "_circular" + acc_flag);
-
+save_imgs_path = "figures\PG_circular_orientation\";
 if ~exist(save_imgs_path, 'dir')
     mkdir(save_imgs_path);
 end

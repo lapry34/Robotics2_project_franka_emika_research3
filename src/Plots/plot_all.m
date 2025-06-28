@@ -45,10 +45,22 @@ function plot_all(  N, T, ...
     end
 
     % Time vector setup
+%     if T > 2
+%         time = 0:dt:t_fin;
+%     else
+%         time = 0:dt:t_fin-dt;
+%     end
+
+
     if T > 2
-        time = 0:dt:t_fin;
-    else
-        time = 0:dt:t_fin-dt;
+        if T < 16
+            time = 0:dt:t_fin;
+        else
+            time = 0:dt:t_fin-dt; % time vector for plotting
+        end
+         
+        else
+            time = 0:dt:t_fin-dt;
     end
 
     % Call plotting functions

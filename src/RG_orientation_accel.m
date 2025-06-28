@@ -63,13 +63,16 @@ p_fin = p_fin + delta/2;
 q_in = num_IK_retry(p_in(1:3)); 
 q_fin = num_IK_retry(p_fin(1:3));
 
-R_in = get_R(q_in);
-R_fin = get_R(q_fin);
+% R_in = get_R(q_in);
+% R_fin = get_R(q_fin);
 
 % Compute the initial and final XYZ Euler orientation
 seq_rot = 'XYZ';
-phi_in = get_phi(R_in); % initial orientation angles
-phi_fin = get_phi(R_fin); % final orientation angles
+% phi_in = get_phi(R_in); % initial orientation angles
+% phi_fin = get_phi(R_fin); % final orientation angles
+
+phi_in = [3.1045, 0.5075, 0.1272]';
+phi_fin = [1.8823, 0.7, 1.29789]';
 
 r_in = [p_in; phi_in];
 r_fin = [p_fin; phi_fin];

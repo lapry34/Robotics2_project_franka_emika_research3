@@ -26,7 +26,7 @@ function plotJointAcceleration(time, ddq_list, N)
                'FontSize', 14, 'Interpreter', 'latex');
 
         grid on;
-        ylim([-4, 4]);
+        ylim([-10, 10]);
         set(gca, 'FontSize', 14);
 
         lgd = legend(ax, 'Location', 'eastoutside');
