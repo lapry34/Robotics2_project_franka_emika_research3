@@ -10,6 +10,12 @@ addpath("./Plots/")
 %% GLOBALS
 N = 7; % number of joints
 T = 18; % total time for the trajectory [s]
+rep = 3;
+R = 0.2; % radius of the circular path [m]
+alpha = 1;
+damp = 2;
+use_RG = true; % use reduced gradient step if true, else use projected gradient step
+use_accel = true; % use acceleration if true, else use velocity
 
 %% LIMITS (from Docs)
 LIM_q_max       = [2.7437, 1.7837, 2.9007, -0.1518, 2.8065, 4.5169, 3.0159]'; % [rad]
@@ -49,14 +55,13 @@ q_sing = q_s{3};
 % delta = [dx; dy; dz];
 
 % singularity at -0.23, 0.28. 0.89
-R = 0.2;
+
 gamma = -pi/2;
 
 C = [p_sing(1);
      p_sing(2);
      p_sing(3) - R];
 
-rep = 3;
 freq = rep/T; 
 %% DEFINING DESIRED TRAJECTORY 
 t_in = 0; % initial time [s]
@@ -65,13 +70,12 @@ t_fin = t_in + T; % final time [s]
 syms t_sym real
 tau = t_sym / T;
 
-
 s = 2* rep * pi * (6 * tau^5 - 15 * tau^4 + 10 * tau^3);
 
 eq1 = s == pi;
 t_sing_1 = double(solve(eq1, t_sym));
 eq2 = s == 3*pi;
-t_sing_2 = solve(eq2, t_sym);
+t_sing_2 = double(solve(eq2, t_sym));
 eq3 = s == 5*pi;
 t_sing_3 = double(solve(eq3, t_sym));
 
@@ -135,10 +139,7 @@ error_list = []; % to store error norms
 
 qA_idx = [1,2,4,5,6,7]; % indices of joints in A (nonsingular)
 qB_idx = [3]; % indices of joints in B (N-M = 1)
-alpha = 1;
-damp = 2;
-use_RG = true; % use reduced gradient step if true, else use projected gradient step
-use_accel = true; % use acceleration if true, else use velocity
+
 
 dt = 0.001; % time step
 t = 0.0;
