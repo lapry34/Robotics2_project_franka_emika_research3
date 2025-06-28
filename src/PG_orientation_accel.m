@@ -214,6 +214,7 @@ plot_all(   N, T, ...
             ddq_list, ...
             phi_list, r_d_sym ...
 )
+
 %% Moving the figures
 save_imgs_path = "figures\PG_orientation_acceleration\";
 if ~exist(save_imgs_path, 'dir')
@@ -226,3 +227,5 @@ for k = 1:length(png_files)
     source_file = png_files(k).name;
     movefile(source_file, fullfile(save_imgs_path, source_file));
 end
+
+close all;

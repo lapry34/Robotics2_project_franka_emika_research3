@@ -128,8 +128,8 @@ qA_idx = [1,2,3,4,5,6]; % indices of joints in A (nonsingular)
 qB_idx = [7]; % indices of joints in B (N-M = 1)
 alpha = 1;
 damp = 2;
-use_RG = false; % use reduced gradient step if true, else use projected gradient step
-use_accel = true; % use acceleration if true, else use velocity
+use_RG = true; % use reduced gradient step if true, else use projected gradient step
+use_accel = false; % use acceleration if true, else use velocity
 
 dt = 0.001; % time step
 t = 0.0;
@@ -249,17 +249,18 @@ fprintf("Norm of final error: %.4f\n", norm(fin_err))
 % subplot(2, 1, 1);
 % hold on;
 
-if T > 2
-    if T < 16
-        time = 0:dt:t_fin;
-    else
-        time = 0:dt:t_fin-dt; % time vector for plotting
-    end
-     % time vector for plotting
-else
-    time = 0:dt:t_fin-dt;
-end
+% if T > 2
+%     if T < 16
+%         time = 0:dt:t_fin;
+%     else
+%         time = 0:dt:t_fin-dt; % time vector for plotting
+%     end
+%      % time vector for plotting
+% else
+%     time = 0:dt:t_fin-dt;
+% end
 
+time = 0:dt:t_fin;
 
 %% PLOT OF THE RESULTS
 % plot joint over time
