@@ -80,9 +80,9 @@ error_list = []; % to store error norms
 
 ms_a_list = []; % to store minimum singular values of J_a
 
-qA_idx = [2,4,5]; % indices of joints in A (nonsingular)
-qB_idx = [1, 3, 6, 7]; % indices of joints in B (N-M = 4)
-alpha = 0.025; % step size for the gradient step
+qA_idx = [1,2,4]; % indices of joints in A (nonsingular)
+qB_idx = [3, 5, 6, 7]; % indices of joints in B (N-M = 4)
+alpha = 1; % step size for the gradient step
 damp = 2; % damping factor for the gradient step
 
 dt = 0.001; % time step

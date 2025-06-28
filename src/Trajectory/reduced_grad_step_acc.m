@@ -20,16 +20,16 @@ function ddq = reduced_grad_step_acc(q, dq, ddr, qA_idx, qB_idx, p_d, dp_d, alph
 
     x_ddot = ddr - J_dot * dq; % acceleration adjusted with J_dot
 
-    disp("J: ");
-    disp(J);
+%     disp("J: ");
+%     disp(J);
 
     J_a = J(:, qA_idx); % (3x7 o 6x7) -> (3xN_a o 6xN_a) where N_a = length(qA_idx)
     J_b = J(:, qB_idx); % (3x7 o 6x7) -> (3xN_b o 6xN_b) where N_b = length(qB_idx)
 
-    disp("J_a: ");
-    disp(J_a);
-    disp("J_b: ");
-    disp(J_b);
+    % disp("J_a: ");
+    % disp(J_a);
+    % disp("J_b: ");
+    % disp(J_b);
 
     J_a_inv = inv(J_a); % (N_a x M) matrix, where N_a = length(qA_idx), M = 3 or 6
     %J_a_inv = DLS(J_a); % damped least squares inverse of J_a

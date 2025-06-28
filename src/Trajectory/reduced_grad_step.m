@@ -21,16 +21,16 @@ function dq = reduced_grad_step(q, dr, qA_idx, qB_idx, p_d, Kp)
     [M, N] = size(J); % M = 3 or 6, N = 7 (number of joints)
     Id = eye(N-M); % identity matrix of size (M-N)x(M-N)
 
-    disp("J: ");
-    disp(J);
+%     disp("J: ");
+%     disp(J);
 
     J_a = J(:, qA_idx); % (3x7 o 6x7) -> (3xN_a o 6xN_a) where N_a = length(qA_idx)
     J_b = J(:, qB_idx); % (3x7 o 6x7) -> (3xN_b o 6xN_b) where N_b = length(qB_idx)
 
-    disp("J_a: ");
-    disp(J_a);
-    disp("J_b: ");
-    disp(J_b);
+    % disp("J_a: ");
+    % disp(J_a);
+    % disp("J_b: ");
+    % disp(J_b);
 
     J_a_inv = pinv(J_a); % (N_a x M) matrix, where N_a = length(qA_idx), M = 3 or 6
     %J_a_inv = DLS(J_a); % damped least squares inverse of J_a

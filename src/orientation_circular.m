@@ -68,6 +68,13 @@ tau = t_sym / T;
 
 s = 2* rep * pi * (6 * tau^5 - 15 * tau^4 + 10 * tau^3);
 
+eq1 = s == pi;
+t_sing_1 = double(solve(eq1, t_sym));
+eq2 = s == 3*pi;
+t_sing_2 = solve(eq2, t_sym);
+eq3 = s == 5*pi;
+t_sing_3 = double(solve(eq3, t_sym));
+
 p_x_t = C(1) + R * cos(s + gamma);
 p_y_t = C(2);
 p_z_t = C(3) + R * sin(s + gamma);
@@ -79,7 +86,9 @@ p_fin = subs(p_d_sym, t_sym, t_fin); % final position at t = T
 p_in = double(p_in); % convert to double
 p_fin = double(p_fin); % convert to double
 
-p_in = p_in + [-0.05; -0.05; -0.05];
+initial_offset = [-0.05; -0.05; -0.05];
+initial_offset = [0.0; 0.0; 0.0];
+p_in = p_in + initial_offset;
 q_in = num_IK_retry(p_in(1:3)); 
 q_fin = num_IK_retry(p_fin(1:3));
 
@@ -124,12 +133,12 @@ dp_list = []; % to store end-effector velocities
 ddp_list = []; % to store end-effector accelerations
 error_list = []; % to store error norms
 
-qA_idx = [1,2,3,4,5,6]; % indices of joints in A (nonsingular)
-qB_idx = [7]; % indices of joints in B (N-M = 1)
+qA_idx = [1,2,4,5,6,7]; % indices of joints in A (nonsingular)
+qB_idx = [3]; % indices of joints in B (N-M = 1)
 alpha = 1;
 damp = 2;
 use_RG = true; % use reduced gradient step if true, else use projected gradient step
-use_accel = false; % use acceleration if true, else use velocity
+use_accel = true; % use acceleration if true, else use velocity
 
 dt = 0.001; % time step
 t = 0.0;
@@ -157,12 +166,13 @@ while t <= t_fin % run for a fixed time
 
     % Switch indices based on which half of each repetition we're in
     rep_progress = mod(t * freq, 1); % progress within current repetition (0 to 1)
+
     if rep_progress < 0.5
-        qA_idx = [1,2,3,4,5,6]; % indices of joints in A (nonsingular)
-        qB_idx = [7]; % indices of joints in B (N-M = 1)
+        qA_idx = [1,2,4,5,6,7]; % indices of joints in A (nonsingular)
+        qB_idx = [3]; % indices of joints in B (N-M = 1)
     else
-        qA_idx = [1,2,3,4,5,7]; % indices of joints in A (nonsingular)
-        qB_idx = [6]; % indices of joints in B (N-M = 1)
+        qA_idx = [1,2,4,5,6,7]; % indices of joints in A (nonsingular)
+        qB_idx = [3]; % indices of joints in B (N-M = 1)
     end
 
     % Nominal Trajectory
@@ -265,7 +275,7 @@ time = 0:dt:t_fin;
 %% PLOT OF THE RESULTS
 % plot joint over time
 disp("Simulation finished. Plotting results...");
-t_sing = [T/6, T/2, 5*T/6];
+t_sing = [t_sing_1, t_sing_2, t_sing_3];
 
 if use_accel == true
     plot_all(   N, T, ...
