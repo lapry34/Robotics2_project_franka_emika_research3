@@ -14,7 +14,7 @@ def generate_launch_description():
     isRG_v = False
     acceleration_v = True
     circular_v = True
-    orientation_v = True
+    orientation_v = False
 
     # 2) Include the standard visualize_franka launch
     franka_vis = IncludeLaunchDescription(
@@ -65,7 +65,7 @@ def generate_launch_description():
     name += '_acc' if acceleration_v else '_vel'
     name += '_ori' if orientation_v else '_pos'
     T = 18.0 if circular_v else 2.5
-    dt = 0.001
+    dt = 0.005
 
     if acceleration_v:
 

@@ -2,7 +2,7 @@
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
-from std_msgs.msg import Float64MultiArray, MultiArrayDimension
+from std_msgs.msg import Float64MultiArray, MultiArrayDimension, Bool
 import numpy as np
 import matplotlib.pyplot as plt
 import os
@@ -35,6 +35,12 @@ class ProjectedGradientController(Node):
         # Ensure the image path exists
         if not os.path.exists(self.img_path):
             os.makedirs(self.img_path)
+
+        # # delete all previous plots
+        # for file in os.listdir(self.img_path):
+        #     if file.endswith('.png'):
+        #         os.remove(os.path.join(self.img_path, file))
+
 
         # Joint limits
         self.LIM_q_max = np.array([ 2.7437,  1.7837,  2.9007, -0.1518,  2.8065,  4.5169,  3.0159])
@@ -90,12 +96,6 @@ class ProjectedGradientController(Node):
         self.array_of_ddqnorm = []  # Store joint accelerations for plotting
         self.array_of_errnorm = []  # Store error norms for plotting
 
-        # # delete all previous plots
-        # for file in os.listdir(self.img_path):
-        #     if file.endswith('.png'):
-        #         os.remove(os.path.join(self.img_path, file))
-
-
 
         # Subscribe to Jacobian and position topics
         
@@ -133,6 +133,9 @@ class ProjectedGradientController(Node):
 
         # Publisher
         self.joint_pub = self.create_publisher(JointState, 'joint_states', 10)
+
+        # Publishers for RViz markers
+        self.traj_marker_pub = self.create_publisher(Bool, 'reset_ee_trajectory', 10)
 
         # reset joint state
         self.reset()
@@ -301,6 +304,11 @@ class ProjectedGradientController(Node):
 
         self.plot_joints()
         
+        # RESET trajectory marker in RViz
+        msg = Bool()
+        msg.data = True 
+        self.traj_marker_pub.publish(msg)  # Reset end-effector trajectory in RViz
+                
         self.t = 0.0
 
         if self.circular:

@@ -42,9 +42,9 @@ class ProjectedGradientController(Node):
         if not os.path.exists(self.img_path):
             os.makedirs(self.img_path)
         # # delete all previous plots
-        for file in os.listdir(self.img_path):
-            if file.endswith('.png'):
-                os.remove(os.path.join(self.img_path, file))
+        # for file in os.listdir(self.img_path):
+        #     if file.endswith('.png'):
+        #         os.remove(os.path.join(self.img_path, file))
 
 
         # Joint limits
@@ -256,19 +256,23 @@ class ProjectedGradientController(Node):
         pinv_J = np.linalg.pinv(J)
 
         damp = 2
-        alpha = 0.0075
         q0_ddot = grad_H - damp * dq
         
         # Error
         e = p_d - pose
 
-        self.get_logger().info(f'p_d: {p_d}, pose: {pose}, e: {e}')
+        # self.get_logger().info(f'p_d: {p_d}, pose: {pose}, e: {e}')
 
         self.array_of_errnorm.append(np.linalg.norm(e[:3]))
         e_dot = dp_d - J.dot(dq)
         # Kp = 10 * np.eye(self.rows)
         # Kd = 20 * np.eye(self.rows)
-        Kp = 15 * np.eye(self.rows)
+        # NO error and with error - circular path
+        # alpha = 0.0075
+        # Kp = 18 * np.eye(self.rows)
+        # Kd = 7 * np.eye(self.rows)
+        alpha = 1
+        Kp = 18.5 * np.eye(self.rows)
         Kd = 7 * np.eye(self.rows)
         PD_control = Kp.dot(e) + Kd.dot(e_dot)
 
@@ -278,7 +282,7 @@ class ProjectedGradientController(Node):
         return ddq
     
     def reduced_grad_step_acc(self, dq, ddr, p_d, dp_d, alpha=1, damp=2.0):
-        alpha=0.0075
+        
         # Current J, p, grad_H from subscriptions
         J = self.J
         J_dot = self.J_dot
@@ -303,8 +307,12 @@ class ProjectedGradientController(Node):
         e = p_d - pose
         self.array_of_errnorm.append(np.linalg.norm(e))
         e_dot = dp_d - J.dot(dq)
+        # linear
         Kp = 12 * np.eye(self.rows)
         Kd = 9 * np.eye(self.rows)
+        # alpha=1
+        # Kp = 0 * np.eye(self.rows)
+        # Kd = 0 * np.eye(self.rows)
         PD_control = Kp.dot(e) + Kd.dot(e_dot)
 
         ddq_b = grad_H_b_prime  # joint velocities for B
@@ -368,9 +376,9 @@ class ProjectedGradientController(Node):
         self.t = 0.0
 
         if self.circular:
-            # self.q = np.array([-0.151744, -0.508092, -0.154674, -2.458706, -0.032223, 1.448057, 0.000000]) # with error
+            self.q = np.array([-0.151744, -0.508092, -0.154674, -2.458706, -0.032223, 1.448057, 0.000000]) # with error
             # self.q = np.array([-0.0698, -0.4768, -0.0714, -2.3262, -0.0126, 1.5190, 0.000000]) # no pos error
-            self.q = np.array([0.1145, -0.4636, -0.5322, -2.4811, 1.1934, 1.3542, -2.0727]) # NO error
+            # self.q = np.array([0.1145, -0.4636, -0.5322, -2.4811, 1.1934, 1.3542, -2.0727]) # NO error
         else:
             self.q = np.array([-0.028095, -0.27994, -0.061667, -1.8035, -0.0083122, 1.7527, 0]) # with error
             # self.q = np.array([-0.0562, -0.5599, -0.061667, -1.8035, -0.0083122, 1.7527, 0]) # no error
