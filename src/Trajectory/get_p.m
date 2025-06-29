@@ -46,7 +46,7 @@ function p = get_p(q, orientation)
     if orientation
         R = get_R(q);  % compute current end-effector position
         seq_rot = 'XYZ';
-        Phi = euler_rotation_inverse(seq_rot , R, 'pos');  % Compute the current XYZ Euler orientation
+        Phi = get_phi(R);
 
         if isnumeric(q)
             p = [p; double(Phi)]; % append the orientation angles to the position vector
