@@ -26,6 +26,16 @@ class ProjectedGradientController(Node):
         self.is_RG = self.get_parameter('is_RG').get_parameter_value().bool_value
         self.circular = self.get_parameter('circular').get_parameter_value().bool_value
 
+        path = "vel_"
+        path += "ori" if self.orientation else "pos"
+        path += "_RG" if self.is_RG else "_PG"
+        path += "_circular" if self.circular else "_linear"
+        self.img_path = '/home/kristoj/Documents/franka_ros2_ws/Results/' + path + '/'
+
+        # Ensure the image path exists
+        if not os.path.exists(self.img_path):
+            os.makedirs(self.img_path)
+
         # Joint limits
         self.LIM_q_max = np.array([ 2.7437,  1.7837,  2.9007, -0.1518,  2.8065,  4.5169,  3.0159])
         self.LIM_q_min = np.array([-2.7437, -1.7837, -2.9007, -3.0421, -2.8065, -0.5445, -3.0159])
@@ -77,11 +87,13 @@ class ProjectedGradientController(Node):
         self.it = 0
         self.array_of_q = []  # Store joint positions for plotting
         self.array_of_dq = []  # Store joint velocities for plotting
+        self.array_of_ddqnorm = []  # Store joint accelerations for plotting
+        self.array_of_errnorm = []  # Store error norms for plotting
 
-        # delete all previous plots
-        for file in os.listdir(self.img_path):
-            if file.endswith('.png'):
-                os.remove(os.path.join(self.img_path, file))
+        # # delete all previous plots
+        # for file in os.listdir(self.img_path):
+        #     if file.endswith('.png'):
+        #         os.remove(os.path.join(self.img_path, file))
 
 
 
@@ -95,7 +107,7 @@ class ProjectedGradientController(Node):
                 10)
             self.create_subscription(
                 Float64MultiArray,
-                'end_effector_pose',
+                'ee_pose',
                 self.pose_callback,
                 10)
         else:
@@ -106,7 +118,7 @@ class ProjectedGradientController(Node):
                 10)
             self.create_subscription(
                 Float64MultiArray,
-                'end_effector_position',
+                'ee_position',
                 self.pose_callback,
                 10)
         
@@ -117,6 +129,7 @@ class ProjectedGradientController(Node):
             self.grad_H_callback,
             10
         )
+
 
         # Publisher
         self.joint_pub = self.create_publisher(JointState, 'joint_states', 10)
@@ -166,6 +179,8 @@ class ProjectedGradientController(Node):
         self.dq = np.clip(self.dq, -self.LIM_dq_max, self.LIM_dq_max)
         self.q  = np.clip(self.q + self.dq * self.dt, self.LIM_q_min, self.LIM_q_max)
 
+        self.array_of_ddqnorm.append(np.linalg.norm(ddq))  # Store norm of acceleration for plotting
+
         # Publish JointState
         self.publish_joint_state()
 
@@ -213,6 +228,7 @@ class ProjectedGradientController(Node):
 
         # Error
         e = r_d - pose
+        self.array_of_errnorm.append(np.linalg.norm(e))
 
         Kp = 1 * np.eye(self.rows)
 
@@ -240,6 +256,8 @@ class ProjectedGradientController(Node):
         grad_H_b_prime = (F @ grad_H)  # (N-M x 1) gradient of H with respect to qB modified for RG.
 
         e = r_d - pose  # error vector
+        self.array_of_errnorm.append(np.linalg.norm(e))
+
         Kp = 2 * np.eye(self.rows)  # proportional gain matrix
 
         dq_b = grad_H_b_prime  # joint velocities for B
@@ -332,9 +350,31 @@ class ProjectedGradientController(Node):
         plt.grid()
         plt.savefig(f'{self.img_path}joint_velocities_over_time_{self.it}.png')
 
+        # save error norm plot
+        plt.figure(figsize=(10, 6))
+        plt.plot(self.array_of_errnorm, label='Error Norm')
+        plt.title('Error Norm Over Time')
+        plt.xlabel('Time Steps')
+        plt.ylabel('Error Norm')
+        plt.legend()
+        plt.grid()
+        plt.savefig(f'{self.img_path}error_norm_over_time_{self.it}.png')
+
+        # save acceleration norm plot
+        plt.figure(figsize=(10, 6))
+        plt.plot(self.array_of_ddqnorm, label='Acceleration Norm')
+        plt.title('Acceleration Norm Over Time')
+        plt.xlabel('Time Steps')
+        plt.ylabel('Acceleration Norm (rad/s^2)')
+        plt.legend()
+        plt.grid()
+        plt.savefig(f'{self.img_path}acceleration_norm_over_time_{self.it}.png')
+
         self.it += 1
         self.array_of_q = []
         self.array_of_dq = []
+        self.array_of_errnorm = []
+        self.array_of_ddqnorm = []
 
 
 def main(args=None):

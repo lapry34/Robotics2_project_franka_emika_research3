@@ -27,7 +27,7 @@ from sensor_msgs.msg import JointState
 from urdf_parser_py.urdf import URDF
 import PyKDL
 from kdl_parser_py.urdf import treeFromUrdfModel
-from std_msgs.msg import Float64MultiArray, MultiArrayDimension
+from std_msgs.msg import Float64MultiArray, MultiArrayDimension, Bool
 import numpy as np
 from visualization_msgs.msg import Marker
 from geometry_msgs.msg import Point
@@ -93,12 +93,12 @@ class JacobianComputation(Node):
         self.grad_H_pub = self.create_publisher(Float64MultiArray, 'grad_H', 10)
         
         if self.orientation:
-            self.pose_ori_pub = self.create_publisher(Float64MultiArray, 'end_effector_pose', 10)
+            self.pose_ori_pub = self.create_publisher(Float64MultiArray, 'ee_pose', 10)
             self.jac_task_pub = self.create_publisher(Float64MultiArray, 'jacobian_task', 10)
             # self.rotation_pub = self.create_publisher(Float64MultiArray, 'rotation_matrix', 10)
             # self.phi_pub = self.create_publisher(Float64MultiArray, 'euler_angles', 10)
         else:
-            self.position_pub = self.create_publisher(Float64MultiArray, 'end_effector_position', 10)
+            self.position_pub = self.create_publisher(Float64MultiArray, 'ee_position', 10)
             self.jac_geom_pub = self.create_publisher(Float64MultiArray, 'jacobian_geom', 10)
 
         if self.acceleration:
@@ -129,15 +129,24 @@ class JacobianComputation(Node):
         self.traj_marker.color.b = 0.0
         self.traj_marker.color.a = 0.5
 
+        self.create_subscription(
+            Bool,
+            'reset_ee_trajectory',
+            lambda msg: self.ee_history.clear() if msg else None,
+            10
+        )
+
         # Log initialization
         self.get_logger().info('JacobianComputer initialized')
 
     def joint_state_callback(self, msg: JointState):
         
-        self._update_joints(msg)
+        ok = self._update_joints(msg)
+        if not ok:
+            return
         self._update_J_geom(self.J_geom, self.joint_positions)
 
-        grad_H = self._get_grad_H(self.H_man, self.joint_positions, self.joint_velocities, self.J_dot)
+        grad_H, self.J_dot = self._get_grad_H(self.H_man, self.joint_positions, self.joint_velocities)
         self._publish_array(self.grad_H_pub, grad_H)
 
         # Compute forward kinematics to get the end-effector frame
@@ -197,7 +206,9 @@ class JacobianComputation(Node):
 
     def _update_joints(self, msg: JointState):
         if not msg.velocity:
+            # ignore if no velocity information is provided
             self.get_logger().info("JointState message does not contain velocity information. Defaulting to zero velocities.")
+            return False
         for idx, name in enumerate(msg.name):
             if idx < self.joint_positions.rows():
                 self.joint_positions[idx] = msg.position[idx]
@@ -206,6 +217,7 @@ class JacobianComputation(Node):
             else:
                 self.joint_velocities[idx] = 0.0  # Default to zero if no velocity provided
                 # self.get_logger().info(f"Joint velocity for {name} not provided or index out of range.")
+        return True
 
     def _update_J_geom(self, J_geom_out, q_in: PyKDL.JntArray):
         
@@ -220,7 +232,7 @@ class JacobianComputation(Node):
         return np.sqrt(np.linalg.det(J.dot(J.T)))
 
     
-    def _get_grad_H(self, func, q: PyKDL.JntArray, dq: PyKDL.JntArray, J_dot: np.ndarray, eps = 1e-6) -> np.ndarray:
+    def _get_grad_H(self, func, q: PyKDL.JntArray, dq: PyKDL.JntArray, eps = 1e-6) -> np.ndarray:
         """
         Compute the gradient of the manipulator function H with respect to joint angles q.
         Updates J_dot if acceleration is True.
@@ -236,6 +248,8 @@ class JacobianComputation(Node):
         
         if self.acceleration:
             J_dot = np.zeros((self.rows, self.cols))
+        else:
+            J_dot = None
         
         grad = np.zeros(self.num_joints)
         q_cpy = PyKDL.JntArray(self.num_joints)
@@ -256,7 +270,7 @@ class JacobianComputation(Node):
 
             grad[i] = (func(J_plus) - func(J_minus)) / (2.0 * eps)
         
-        return grad
+        return grad, J_dot
 
 
     def _get_phi(self, R: np.ndarray) -> np.ndarray:

@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
+from typing import List
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import JointState
-from std_msgs.msg import Float64MultiArray, MultiArrayDimension
+from std_msgs.msg import Float64MultiArray, MultiArrayDimension, Bool
 import numpy as np
 import matplotlib.pyplot as plt
 import os
+from geometry_msgs.msg import Point
+from visualization_msgs.msg import Marker
 
 class ProjectedGradientController(Node):
     def __init__(self):
@@ -25,6 +28,24 @@ class ProjectedGradientController(Node):
         self.orientation = self.get_parameter('orientation').get_parameter_value().bool_value
         self.is_RG = self.get_parameter('is_RG').get_parameter_value().bool_value
         self.circular = self.get_parameter('circular').get_parameter_value().bool_value
+
+        self.get_logger().info(f'Controller initialized with T={self.T}, dt={self.dt}, orientation={self.orientation}, is_RG={self.is_RG}, circular={self.circular}')
+
+
+        path = "acc_"
+        path += "ori" if self.orientation else "pos"
+        path += "_RG" if self.is_RG else "_PG"
+        path += "_circular" if self.circular else "_linear"
+        self.img_path = '/home/kristoj/Documents/franka_ros2_ws/Results/' + path + '/'
+
+        # Ensure the image path exists
+        if not os.path.exists(self.img_path):
+            os.makedirs(self.img_path)
+        # # delete all previous plots
+        for file in os.listdir(self.img_path):
+            if file.endswith('.png'):
+                os.remove(os.path.join(self.img_path, file))
+
 
         # Joint limits
         self.LIM_q_max = np.array([ 2.7437,  1.7837,  2.9007, -0.1518,  2.8065,  4.5169,  3.0159])
@@ -79,11 +100,9 @@ class ProjectedGradientController(Node):
         self.it = 0
         self.array_of_q = []  # Store joint positions for plotting
         self.array_of_dq = []  # Store joint velocities for plotting
+        self.array_of_ddqnorm = []  # Store joint accelerations for plotting
+        self.array_of_errnorm = []  # Store error norms for plotting
 
-        # delete all previous plots
-        for file in os.listdir(self.img_path):
-            if file.endswith('.png'):
-                os.remove(os.path.join(self.img_path, file))
 
         
         # Subscribe to Jacobian and position topics
@@ -95,7 +114,7 @@ class ProjectedGradientController(Node):
                 10)
             self.create_subscription(
                 Float64MultiArray,
-                'end_effector_pose',
+                'ee_pose',
                 self.pose_callback,
                 10)
         else:
@@ -106,7 +125,7 @@ class ProjectedGradientController(Node):
                 10)
             self.create_subscription(
                 Float64MultiArray,
-                'end_effector_position',
+                'ee_position',
                 self.pose_callback,
                 10)
         
@@ -126,6 +145,10 @@ class ProjectedGradientController(Node):
 
         # Publisher
         self.joint_pub = self.create_publisher(JointState, 'joint_states', 10)
+
+        # Publishers for RViz markers
+        self.traj_marker_pub = self.create_publisher(Bool, 'reset_ee_trajectory', 10)
+
 
         # reset joint state
         self.reset()
@@ -170,6 +193,8 @@ class ProjectedGradientController(Node):
         self.dq = np.clip(self.dq, -self.LIM_dq_max, self.LIM_dq_max)
         self.q += self.dq * self.dt + self.ddq * self.dt**2 / 2.0
         self.q  = np.clip(self.q, self.LIM_q_min, self.LIM_q_max)
+
+        self.array_of_ddqnorm.append(np.linalg.norm(self.ddq))  # Store norm of acceleration for plotting
 
         # Publish JointState
         self.publish_joint_state()
@@ -231,21 +256,29 @@ class ProjectedGradientController(Node):
         pinv_J = np.linalg.pinv(J)
 
         damp = 2
+        alpha = 0.0075
         q0_ddot = grad_H - damp * dq
         
         # Error
         e = p_d - pose
+
+        self.get_logger().info(f'p_d: {p_d}, pose: {pose}, e: {e}')
+
+        self.array_of_errnorm.append(np.linalg.norm(e[:3]))
         e_dot = dp_d - J.dot(dq)
-        Kp = 10 * np.eye(self.rows)
-        Kd = 20 * np.eye(self.rows)
+        # Kp = 10 * np.eye(self.rows)
+        # Kd = 20 * np.eye(self.rows)
+        Kp = 15 * np.eye(self.rows)
+        Kd = 7 * np.eye(self.rows)
         PD_control = Kp.dot(e) + Kd.dot(e_dot)
 
         # Projected gradient update
-        ddq = q0_ddot + pinv_J.dot(x_ddot - J.dot(q0_ddot) + PD_control)
+        ddq = q0_ddot + pinv_J.dot(x_ddot - alpha*J.dot(q0_ddot) + PD_control)
 
         return ddq
     
     def reduced_grad_step_acc(self, dq, ddr, p_d, dp_d, alpha=1, damp=2.0):
+        alpha=0.0075
         # Current J, p, grad_H from subscriptions
         J = self.J
         J_dot = self.J_dot
@@ -268,13 +301,14 @@ class ProjectedGradientController(Node):
         grad_H_b_prime = alpha * (F @ grad_H)  # (N-M x 1) gradient of H with respect to qB modified for RG.
 
         e = p_d - pose
+        self.array_of_errnorm.append(np.linalg.norm(e))
         e_dot = dp_d - J.dot(dq)
-        Kp = 0 * np.eye(self.rows)
-        Kd = 0.0 * np.eye(self.rows)
+        Kp = 12 * np.eye(self.rows)
+        Kd = 9 * np.eye(self.rows)
         PD_control = Kp.dot(e) + Kd.dot(e_dot)
 
         ddq_b = grad_H_b_prime  # joint velocities for B
-        ddq_a = pinv_J_a @ (x_ddot - J_b @ ddq_b + PD_control)  # joint velocities for A (N_a x 1)
+        ddq_a = pinv_J_a @ (x_ddot - alpha*J_b @ ddq_b + PD_control)  # joint velocities for A (N_a x 1)
 
         ddq = np.zeros(self.N)
         ddq[self.qA_idx] = ddq_a  # assign joint velocities for A
@@ -299,6 +333,7 @@ class ProjectedGradientController(Node):
     def pose_callback(self, msg):
         self.pose = np.array(msg.data)
 
+
     def grad_H_callback(self, msg):
         self.grad_H = np.array(msg.data)
 
@@ -318,15 +353,24 @@ class ProjectedGradientController(Node):
         js.velocity = self.dq.tolist()
         self.joint_pub.publish(js)
 
+        # Update end-effector trajectory marker
+        # BUT TOO SLOW FOR REAL-TIME -> dont do it every call
+
     def reset(self):
 
         self.plot_joints()
-        
+
+        # RESET trajectory marker in RViz
+        msg = Bool()
+        msg.data = True 
+        self.traj_marker_pub.publish(msg)  # Reset end-effector trajectory in RViz
+                
         self.t = 0.0
 
         if self.circular:
-            self.q = np.array([-0.151744, -0.508092, -0.154674, -2.458706, -0.032223, 1.448057, 0.000000]) # with error
-            # self.q = np.array([-0.0698, -0.4768, -0.0714, -2.3262, -0.0126, 1.5190, 0.000000]) # no error
+            # self.q = np.array([-0.151744, -0.508092, -0.154674, -2.458706, -0.032223, 1.448057, 0.000000]) # with error
+            # self.q = np.array([-0.0698, -0.4768, -0.0714, -2.3262, -0.0126, 1.5190, 0.000000]) # no pos error
+            self.q = np.array([0.1145, -0.4636, -0.5322, -2.4811, 1.1934, 1.3542, -2.0727]) # NO error
         else:
             self.q = np.array([-0.028095, -0.27994, -0.061667, -1.8035, -0.0083122, 1.7527, 0]) # with error
             # self.q = np.array([-0.0562, -0.5599, -0.061667, -1.8035, -0.0083122, 1.7527, 0]) # no error
@@ -374,9 +418,32 @@ class ProjectedGradientController(Node):
         plt.grid()
         plt.savefig(f'{self.img_path}joint_velocities_over_time_{self.it}.png')
 
+        # save error norm plot
+        plt.figure(figsize=(10, 6))
+        plt.plot(self.array_of_errnorm[10:], label='Error Norm')
+        plt.title('Error Norm Over Time')
+        plt.xlabel('Time Steps')
+        plt.ylabel('Error Norm')
+        plt.legend()
+        plt.grid()
+        plt.savefig(f'{self.img_path}error_norm_over_time_{self.it}.png')
+
+
+        # save acceleration norm plot
+        plt.figure(figsize=(10, 6))
+        plt.plot(self.array_of_ddqnorm, label='Acceleration Norm')
+        plt.title('Acceleration Norm Over Time')
+        plt.xlabel('Time Steps')
+        plt.ylabel('Acceleration Norm (rad/s^2)')
+        plt.legend()
+        plt.grid()
+        plt.savefig(f'{self.img_path}acceleration_norm_over_time_{self.it}.png')
+
         self.it += 1
         self.array_of_q = []
         self.array_of_dq = []
+        self.array_of_errnorm = []
+        self.array_of_ddqnorm = []
 
 
 def main(args=None):

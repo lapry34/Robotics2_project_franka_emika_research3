@@ -11,7 +11,7 @@ from launch_ros.actions import Node
 def generate_launch_description():
     # 1) Declare a launch argument for orientation
     
-    isRG_v = True
+    isRG_v = False
     acceleration_v = True
     circular_v = True
     orientation_v = True
@@ -64,7 +64,8 @@ def generate_launch_description():
     name = 'RG' if isRG_v else 'PG'
     name += '_acc' if acceleration_v else '_vel'
     name += '_ori' if orientation_v else '_pos'
-    T = 15.0 if circular_v else 2.5
+    T = 18.0 if circular_v else 2.5
+    dt = 0.001
 
     if acceleration_v:
 
@@ -75,7 +76,7 @@ def generate_launch_description():
             output='screen',
             parameters=[{
                 'T': T,  # Trajectory duration
-                'dt': 0.001,  # Control loop period
+                'dt': dt,  # Control loop period
                 # 'orientation': ParameterValue(LaunchConfiguration('orientation'), value_type=bool),
                 # 'is_RG': ParameterValue(LaunchConfiguration('is_RG'), value_type=bool),
                 # 'circular': ParameterValue(LaunchConfiguration('circular'), value_type=bool)
@@ -94,7 +95,7 @@ def generate_launch_description():
             output='screen',
             parameters=[{
                 'T': T,  # Trajectory duration
-                'dt': 0.001,  # Control loop period
+                'dt': dt,  # Control loop period
                 # 'orientation': ParameterValue(LaunchConfiguration('orientation'), value_type=bool),
                 # 'is_RG': ParameterValue(LaunchConfiguration('is_RG'), value_type=bool),
                 # 'circular': ParameterValue(LaunchConfiguration('circular'), value_type=bool)
@@ -103,6 +104,14 @@ def generate_launch_description():
                 'circular': circular_v
             }]
         )
+    
+    circle_node = Node(
+        package='my_fr3_control',
+        executable='circle_palle',
+        name='circle',
+        output='screen',
+        parameters=[]
+    )
 
 
 
@@ -110,5 +119,6 @@ def generate_launch_description():
 
         franka_vis,
         jacobian_node,
-        proj_grad_node
+        proj_grad_node,
+        # circle_node
     ])
