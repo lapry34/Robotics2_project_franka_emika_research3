@@ -10,13 +10,55 @@ addpath("./Plots/")
 %% GLOBALS
 N = 7; % number of joints
 T = 18; % total time for the trajectory [s]
+dt = 0.001;
 rep = 3;
 R = 0.2; % radius of the circular path [m]
+initial_offset = [-0.05; -0.05; -0.05]; % initial offset from the path
 alpha = 1;
 damp = 2;
 use_RG = true; % use reduced gradient step if true, else use projected gradient step
-use_accel = true; % use acceleration if true, else use velocity
+use_accel = false; % use acceleration if true, else use velocity
 
+% For RG only
+list_joints = 1:N;
+qB_idx1 = [3]; % indices of joints in B (N-M = 1)
+qA_idx1 = setdiff(list_joints, qB_idx1);  % indices of joints in A (nonsingular)
+
+qB_idx2 = [6];
+qA_idx2 = setdiff(list_joints, qB_idx2);
+
+
+if use_accel == true % when we are at acceleration level
+    if use_RG == true
+        Kp = 2;
+        Kd = 2;
+        alpha = 0.0075;
+        damp = 2;
+        qB_idx2 = qB_idx1;
+        qA_idx2 = qA_idx1;
+    else
+        Kp = 5;
+        Kd = 5;
+    end
+
+else % when we are at velocity level
+    if use_RG == true
+        Kp = 2;
+    else
+        Kp = 2;
+    end
+    Kd = 2;  % Not used for velocity (use_accel=false)
+end
+
+% Kp
+% Kd
+% alpha
+% damp
+% qA_idx1
+% qB_idx1
+% qA_idx2
+% qB_idx2
+ 
 %% LIMITS (from Docs)
 LIM_q_max       = [2.7437, 1.7837, 2.9007, -0.1518, 2.8065, 4.5169, 3.0159]'; % [rad]
 LIM_q_min       = [-2.7437, -1.7837, -2.9007, -3.0421, -2.8065, -0.5445, -3.0159]'; % [rad]
@@ -42,42 +84,24 @@ p_s{4} = get_p(q_s{4});
 
 p_sing = p_s{3};
 q_sing = q_s{3};
-% fprintf("Before Clamping:\n q_s = [%f, %f, %f, %f, %f, %f, %f]\n", q_sing(1), q_sing(2), q_sing(3), q_sing(4), q_sing(5), q_sing(6), q_sing(7));
-% q_sing = clamp_vec(q_sing, LIM_q_min, LIM_q_max); % clamp to limits
-% fprintf("After Clamping:\n q_s = [%f, %f, %f, %f, %f, %f, %f]\n", q_sing(1), q_sing(2), q_sing(3), q_sing(4), q_sing(5), q_sing(6), q_sing(7));
-% pause;
 
-%% DEFINING INITIAL AND FINAL POSE
-% Define the variation of displacement in each direction
-% dx = 0.0; % [m]
-% dy = 0.0; % [m]
-% dz = 0.2; % [m]
-% delta = [dx; dy; dz];
-
-% singularity at -0.23, 0.28. 0.89
-
+%% DEFINING DESIRED TRAJECTORY 
 gamma = -pi/2;
 
+syms t_sym real
+tau = t_sym / T;
+s = 2* rep * pi * (6 * tau^5 - 15 * tau^4 + 10 * tau^3);
+% singularity at -0.23, 0.28. 0.89
+% Center of the circular path
 C = [p_sing(1);
      p_sing(2);
      p_sing(3) - R];
 
 freq = rep/T; 
-%% DEFINING DESIRED TRAJECTORY 
+
 t_in = 0; % initial time [s]
 t_fin = t_in + T; % final time [s]
 
-syms t_sym real
-tau = t_sym / T;
-
-s = 2* rep * pi * (6 * tau^5 - 15 * tau^4 + 10 * tau^3);
-
-eq1 = s == pi;
-t_sing_1 = double(solve(eq1, t_sym));
-eq2 = s == 3*pi;
-t_sing_2 = double(solve(eq2, t_sym));
-eq3 = s == 5*pi;
-t_sing_3 = double(solve(eq3, t_sym));
 
 p_x_t = C(1) + R * cos(s + gamma);
 p_y_t = C(2);
@@ -90,13 +114,11 @@ p_fin = subs(p_d_sym, t_sym, t_fin); % final position at t = T
 p_in = double(p_in); % convert to double
 p_fin = double(p_fin); % convert to double
 
-initial_offset = [-0.05; -0.05; -0.05];
-initial_offset = [0.0; 0.0; 0.0];
 p_in = p_in + initial_offset;
 q_in = num_IK_retry(p_in(1:3)); 
 q_fin = num_IK_retry(p_fin(1:3));
 
-
+% Initlai orientation (constant)
 R_in = [0, 1, 0;
         0, 0, 1;
         1, 0, 0];
@@ -111,23 +133,20 @@ disp(['phi_fin = ', num2str(rad2deg(phi_fin'))]);
 delta_phi = phi_fin - phi_in;
 phi_d_sym = vpa(phi_in + delta_phi * (6 * tau^5 - 15 * tau^4 + 10 * tau^3)); % quintic polynomial
 
+% Defining the task
 r_d_sym = vpa([p_d_sym; phi_d_sym]);
 r_dot_sym = diff(r_d_sym, t_sym);  % firt der
 r_ddot_sym = diff(r_dot_sym, t_sym); % second der
 
+% Fing the t when the manipulator is expected to pass in singularity
+eq1 = s == pi;
+t_sing_1 = double(solve(eq1, t_sym));
+eq2 = s == 3*pi;
+t_sing_2 = double(solve(eq2, t_sym));
+eq3 = s == 5*pi;
+t_sing_3 = double(solve(eq3, t_sym));
 
-% R_in = get_R(q_in);
-% R_fin = get_R(q_fin);
-
-% Compute the initial and final XYZ Euler orientation
-% seq_rot = 'XYZ';
-% phi_in = get_phi(R_in); % initial orientation angles
-% phi_fin = get_phi(R_fin); % final orientation angles
-
-% dp_sym = diff(p_d_sym, t_sym); % first derivative (velocity)
-% ddp_sym = diff(dp_sym, t_sym); % second derivative (acceleration)
-
-
+%% ALGORITHM
 q_list = []; % to store joint positions
 dq_list = []; % to store joint velocities
 ddq_list = []; % to store joint accelerations
@@ -137,18 +156,13 @@ dp_list = []; % to store end-effector velocities
 ddp_list = []; % to store end-effector accelerations
 error_list = []; % to store error norms
 
-qA_idx = [1,2,4,5,6,7]; % indices of joints in A (nonsingular)
-qB_idx = [3]; % indices of joints in B (N-M = 1)
-
-
-dt = 0.001; % time step
+ % time step
 t = 0.0;
 q = q_in; % initialize joint position
 dq = zeros(N, 1); % initialize joint velocity
 ddq = zeros(N, 1); % initialize joint acceleration
 
 t_sing = 0;
-
 
 if ~use_accel
     disp("Using velocity control (no acceleration)");
@@ -160,6 +174,7 @@ if use_RG
 else
     disp("Using Projected Gradient Step");
 end
+
 disp("press any key to start the simulation...");
 pause; % wait for user input to start the simulation
 
@@ -169,11 +184,11 @@ while t <= t_fin % run for a fixed time
     rep_progress = mod(t * freq, 1); % progress within current repetition (0 to 1)
 
     if rep_progress < 0.5
-        qA_idx = [1,2,4,5,6,7]; % indices of joints in A (nonsingular)
-        qB_idx = [3]; % indices of joints in B (N-M = 1)
+        qA_idx = qA_idx1; % indices of joints in A (nonsingular)
+        qB_idx = qB_idx1; % indices of joints in B (N-M = 1)
     else
-        qA_idx = [1,2,4,5,6,7]; % indices of joints in A (nonsingular)
-        qB_idx = [3]; % indices of joints in B (N-M = 1)
+        qA_idx = qA_idx2; % indices of joints in A (nonsingular)
+        qB_idx = qB_idx2; % indices of joints in B (N-M = 1)
     end
 
     % Nominal Trajectory
@@ -212,9 +227,9 @@ while t <= t_fin % run for a fixed time
     % [!] PG or RG step
     if use_accel == true
         if use_RG == true
-            ddq = reduced_grad_step_acc(q, dq, ddp_nom, qA_idx, qB_idx, p_nom, dp_nom, alpha, damp,5,5); % compute joint velocity using reduced gradient step
+            ddq = reduced_grad_step_acc(q, dq, ddp_nom, qA_idx, qB_idx, p_nom, dp_nom, alpha, damp,Kp,Kd); % compute joint velocity using reduced gradient step
         else
-            ddq = proj_grad_step_acc(q, dq, ddp_nom, p_nom, dp_nom, 5,5); % compute joint acceleration using projected gradient step
+            ddq = proj_grad_step_acc(q, dq, ddp_nom, p_nom, dp_nom, Kp, Kd); % compute joint acceleration using projected gradient step
         end
         %disp(['ddq = [', num2str(ddq'), ']']);
 
@@ -227,9 +242,9 @@ while t <= t_fin % run for a fixed time
         %disp(['Clamped dq = [', num2str(dq'), ']']);
     else
         if use_RG == true
-            dq = reduced_grad_step(q, dp_nom, qA_idx, qB_idx, p_nom,2); % compute joint velocity using reduced gradient step
+            dq = reduced_grad_step(q, dp_nom, qA_idx, qB_idx, p_nom,Kp); % compute joint velocity using reduced gradient step
         else
-            dq = proj_grad_step(q, dp_nom, p_nom, 2); % compute joint velocity using projected gradient step
+            dq = proj_grad_step(q, dp_nom, p_nom, Kp); % compute joint velocity using projected gradient step
         end
     end
     dq = clamp_vec(dq, -LIM_dq_max, LIM_dq_max); % clamp joint velocity to max limits
@@ -251,31 +266,13 @@ fin_err = p_fin(1:3) - p(1:3);
 fprintf("Norm of final error: %.4f\n", norm(fin_err))
 
 
-% % % plot joint over time
-% disp("Simulation finished. Plotting results...");
-% 
-% figure;
-% 
-% % Plot end-effector position over time
-% subplot(2, 1, 1);
-% hold on;
-
-% if T > 2
-%     if T < 16
-%         time = 0:dt:t_fin;
-%     else
-%         time = 0:dt:t_fin-dt; % time vector for plotting
-%     end
-%      % time vector for plotting
-% else
-%     time = 0:dt:t_fin-dt;
-% end
-
-time = 0:dt:t_fin;
-
 %% PLOT OF THE RESULTS
 % plot joint over time
 disp("Simulation finished. Plotting results...");
+time = 0:dt:t_fin;
+min_len = min(length(time), length(q_list));
+time = time(1:min_len);
+
 t_sing = [t_sing_1, t_sing_2, t_sing_3];
 
 if use_accel == true
@@ -301,8 +298,6 @@ end
 
 plotNormVelocity(time, dp_list, r_dot_sym, t_sym)
 plotNormAcceleration(time, ddp_list, r_ddot_sym, t_sym)
-
-
 
 %%
 
@@ -337,10 +332,7 @@ zlim([C(3) - dx, C(3) + dx])
 grid on;
 exportgraphics(fig, 'EndEffector3D.png', 'Resolution', 300);
 
-
-
 close all;
-
 %% Moving the figures
 
 if use_RG == true

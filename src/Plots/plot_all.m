@@ -45,26 +45,22 @@ function plot_all(  N, T, ...
     end
 
     % Time vector setup
-%     if T > 2
-%         time = 0:dt:t_fin;
-%     else
-%         time = 0:dt:t_fin-dt;
-%     end
 
-
-%     if T > 2
-%         if T < 16
-%             time = 0:dt:t_fin;
-%         else
-%             time = 0:dt:t_fin-dt; % time vector for plotting
-%         end
-%          
-%         else
-%             time = 0:dt:t_fin-dt;
-%     end
+    if T > 2
+        if T < 16
+            time = 0:dt:t_fin;
+        else
+            time = 0:dt:t_fin-dt; % time vector for plotting
+        end
+         
+        else
+            time = 0:dt:t_fin-dt;
+    end
 
     time = 0:dt:t_fin;
-
+    min_len = min(length(time), length(q_list));
+    time = time(1:min_len);
+    
     % Call plotting functions
     plotEndEffectorPosition(time, p_list, p_d_sym, t_sym);
     plotErrorNorm(time, error_list, t_sing);
