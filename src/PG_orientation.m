@@ -100,6 +100,7 @@ dq_list = []; % to store joint velocities
 phi_list = []; % to store orientation angles
 p_list = []; % to store end-effector positions
 error_list = []; % to store error norms
+H_man_list = []; % to store manipulability measure
  
 dt = 0.001; % time step
 t = 0.0;
@@ -138,6 +139,7 @@ while t < t_fin % run for a fixed time
     error = r_d_nom(1:3) - p(1:3);    % position error
     norm_e = double(norm(error));
     detJJtrans = det(J*J');
+    H_man = sqrt(detJJtrans); % manipulability measure
     
     if print_info == true
         min_singular = svds(J, 1, 'smallest');
@@ -153,6 +155,7 @@ while t < t_fin % run for a fixed time
     dq_list = [dq_list, q_dot]; % store joint velocity
     p_list = [p_list, p]; % store end-effector position
     phi_list = [phi_list, phi]; % store orientation angles
+    H_man_list = [H_man_list, H_man];
     % [!] PG step
     q_dot = proj_grad_step(q, r_dot_nom, r_d_nom, 4); % compute joint velocity using projected gradient step
     q_dot = double(q_dot);
@@ -197,7 +200,7 @@ plot_all(   N, T, ...
             LIM_dq_max, LIM_q_max, LIM_q_min, ...
             2, ... % want_acc_orient = 2 (plot orientations)
             [], ... % ddq_list not needed for orientation plot
-            phi_list, r_d_sym ...
+            phi_list, r_d_sym, H_man_list ...
 )
 
 

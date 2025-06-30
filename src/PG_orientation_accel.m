@@ -103,6 +103,7 @@ ddq_list = []; % to store joint accelerations
 phi_list = []; % to store orientation angles
 p_list = []; % to store end-effector positions
 error_list = []; % to store error norms
+H_man_list = []; % to store manipulability measure
  
 dt = 0.001; % time step
 t = 0.0;
@@ -136,13 +137,15 @@ while t < t_fin % run for a fixed time
     J = get_J(q, true);
     J_dot = get_J_dot(q, q_dot, true); % compute current end-effector Jacobian and its time derivative
     phi = get_phi(get_R(q)); % get the orientation angles from the rotation matrix
- 
+    
+
     r_dot = J * q_dot;
     r_ddot = J * q_ddot + J_dot * q_dot; % compute current end-effector acceleration
     error = r_d_nom(1:3) - p(1:3);     % position error
     norm_e = double(norm(error));
     detJJtrans = det(J*J');
-    
+    H_man = sqrt(detJJtrans); % manipulability measure
+
     if print_info == true
         min_singular = svds(J, 1, 'smallest');
         disp(['Minimum singular value of J: ', num2str(min_singular)]);
@@ -158,6 +161,7 @@ while t < t_fin % run for a fixed time
     ddq_list = [ddq_list, q_ddot]; % store joint acceleration
     p_list = [p_list, p]; % store end-effector position
     phi_list = [phi_list, phi]; % store orientation angles
+    H_man_list = [H_man_list, H_man];
     % [!] PG step
     q_ddot = proj_grad_step_acc(q, q_dot, r_ddot_nom, r_d_nom, r_dot_nom, 10, 5);
     q_ddot = double(q_ddot);
@@ -212,7 +216,7 @@ plot_all(   N, T, ...
             LIM_dq_max, LIM_q_max, LIM_q_min, ...
             3, ... % want_acc_orient = 3 (plot accelerations and orientations)
             ddq_list, ...
-            phi_list, r_d_sym ...
+            phi_list, r_d_sym, H_man_list ...
 )
 
 %% Moving the figures

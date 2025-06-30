@@ -78,6 +78,7 @@ dq_list = []; % to store joint velocities
 ddq_list = []; % to store joint accelerations
 p_list = []; % to store end-effector positions
 error_list = []; % to store error norms
+H_man_list = []; % to store manipulability measure
 
 ms_a_list = []; % to store minimum singular values of J_a
 
@@ -134,12 +135,15 @@ while t < t_fin % run for a fixed time
         disp (['t = ', num2str(t), ' s, p = [', num2str(p'), '] dp = [', num2str(dp'), ']']);
         disp( ['q = [', num2str(q'), ']']);
         disp(['norm error = ', num2str(norm_e)]);
+        detJJtrans = det(J*J');
+        H_man = sqrt(detJJtrans); % manipulability measure
 
         error_list = [error_list, norm_e]; % store error norm for plotting later
         q_list = [q_list, q]; % store joint position
         dq_list = [dq_list, dq]; % store joint velocity
         ddq_list = [ddq_list, ddq]; % store joint acceleration
         p_list = [p_list, p]; % store end-effector position
+        H_man_list = [H_man_list, H_man]; % store manipulability measure
     
     % [!] RG step
     ddq = reduced_grad_step_acc(q, dq, ddp_nom, qA_idx, qB_idx, p_nom, dp_nom, alpha, damp,10,5); % compute joint velocity using reduced gradient step
@@ -180,7 +184,8 @@ plot_all(   N, T, ...
             q_list, dq_list, error_list, ...
             LIM_dq_max, LIM_q_max, LIM_q_min, ...
             1, ... % want_acc_orient = 1 (plot accelerations)
-            ddq_list ...
+            ddq_list, ...
+            [], [], H_man_list ...          
 )
 %% Moving the figures
 save_imgs_path = "figures\RG_position_acceleration\";

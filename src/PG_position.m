@@ -76,6 +76,7 @@ q_list = []; % to store joint positions
 dq_list = []; % to store joint velocities
 p_list = []; % to store end-effector positions
 error_list = []; % to store error norms
+H_man_list = []; % to store manipulability measure
 
 
 dt = 0.001; % time step
@@ -112,6 +113,7 @@ while t < t_fin % run for a fixed time
         error = dp_nom - dp;
         norm_e = double(norm(error));
         detJJtrans = det(J*J');
+        H_man = sqrt(detJJtrans); % manipulability measure
         disp (['t = ', num2str(t), ' s, p = [', num2str(p'), '] dp = [', num2str(dp'), ']']);
         disp( ['q = [', num2str(q'), ']']);
         fprintf("det(J*J') = %.4f\n", detJJtrans);
@@ -121,6 +123,7 @@ while t < t_fin % run for a fixed time
         q_list = [q_list, q]; % store joint position
         dq_list = [dq_list, dq]; % store joint velocity
         p_list = [p_list, p]; % store end-effector position
+        H_man_list = [H_man_list, H_man]; % store manipulability measure
     
     % [!] PG step
     dq = proj_grad_step(q, dp_nom, p_nom, 4); % compute joint velocity using projected gradient step
@@ -155,7 +158,9 @@ plot_all(   N, T, ...
             dt, t_fin, t_sym, t_sing, ...
             p_list, p_start, p_end, p_sing, p_d_sym, ...
             q_list, dq_list, error_list, ...
-            LIM_dq_max, LIM_q_max, LIM_q_min ...
+            LIM_dq_max, LIM_q_max, LIM_q_min, ...
+            0, ...
+            [0], [0], [0], H_man_list ...
 )
 %% Moving the figures
 save_imgs_path = "figures\PG_position\";

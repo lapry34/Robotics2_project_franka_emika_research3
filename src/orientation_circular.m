@@ -16,8 +16,8 @@ R = 0.2; % radius of the circular path [m]
 initial_offset = [-0.05; -0.05; -0.05]; % initial offset from the path
 alpha = 1;
 damp = 2;
-use_RG = false; % use reduced gradient step if true, else use projected gradient step
-use_accel = false; % use acceleration if true, else use velocity
+use_RG = true; % use reduced gradient step if true, else use projected gradient step
+use_accel = true; % use acceleration if true, else use velocity
 
 % For RG only
 list_joints = 1:N;
@@ -155,6 +155,7 @@ p_list = []; % to store end-effector positions
 dp_list = []; % to store end-effector velocities
 ddp_list = []; % to store end-effector accelerations
 error_list = []; % to store error norms
+H_man_list = []; % to store manipulability measure
 
  % time step
 t = 0.0;
@@ -210,6 +211,7 @@ while t <= t_fin % run for a fixed time
         error = p_nom(1:3) - p(1:3); % compute error in end-effector position
         norm_e = double(norm(error));
         detJJtrans = det(J*J');
+        H_man = sqrt(detJJtrans); % manipulability measure
         %disp (['t = ', num2str(t), ' s, p = [', num2str(p'), '] dp = [', num2str(dp'), '] ddp = [', num2str(ddp_nom'), ']']);
         %disp( ['q = [', num2str(q'), ']']);
         %fprintf("det(J*J') = %.4f\n", detJJtrans);
@@ -223,7 +225,7 @@ while t <= t_fin % run for a fixed time
         dp_list = [dp_list, dp]; % store end-effector velocity
         ddp_list = [ddp_list, ddp]; % store end-effector acceleration
         phi_list = [phi_list, phi]; % store orientation angles
-
+        H_man_list = [H_man_list, H_man]; % store manipulability measure
     % [!] PG or RG step
     if use_accel == true
         if use_RG == true
@@ -282,7 +284,7 @@ if use_accel == true
             q_list, dq_list, error_list, ...
             LIM_dq_max, LIM_q_max, LIM_q_min, ...
             2, ... % want_acc_orient = 1 (plot accelerations)
-            ddq_list, phi_list, r_d_sym ...
+            ddq_list, phi_list, r_d_sym, H_man_list ...
             )
 else 
     plot_all(   N, T, ...
@@ -292,7 +294,7 @@ else
                 LIM_dq_max, LIM_q_max, LIM_q_min, ...
                 2, ... % want_acc_orient = 2 (plot orientations)
                 [], ... % ddq_list not needed for orientation plot
-                phi_list, r_d_sym ...
+                phi_list, r_d_sym, H_man_list ...
                 )
 end
 
