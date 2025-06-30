@@ -16,7 +16,7 @@ R = 0.2; % radius of the circular path [m]
 initial_offset = [-0.05; -0.05; -0.05]; % initial offset from the path
 alpha = 1;
 damp = 2;
-use_RG = true; % use reduced gradient step if true, else use projected gradient step
+use_RG = false; % use reduced gradient step if true, else use projected gradient step
 use_accel = false; % use acceleration if true, else use velocity
 
 % For RG only
@@ -281,8 +281,8 @@ if use_accel == true
             p_list, p_in, p_fin, p_sing, r_d_sym, ...
             q_list, dq_list, error_list, ...
             LIM_dq_max, LIM_q_max, LIM_q_min, ...
-            1, ... % want_acc_orient = 1 (plot accelerations)
-            ddq_list ...
+            2, ... % want_acc_orient = 1 (plot accelerations)
+            ddq_list, phi_list, r_d_sym ...
             )
 else 
     plot_all(   N, T, ...
