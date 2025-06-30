@@ -33,7 +33,7 @@ function ddq = reduced_grad_step_acc(q, dq, ddr, qA_idx, qB_idx, p_d, dp_d, alph
 
     J_a_inv = pinv(J_a); % (N_a x M) matrix, where N_a = length(qA_idx), M = 3 or 6
     %J_a_inv = DLS(J_a); % damped least squares inverse of J_a
-    H_man = @(q) sqrt(det(get_J(q) * get_J(q)'));
+    H_man = @(q) sqrt(det(get_J(q, orientation) * get_J(q, orientation)'));
     H = H_man;
 %     H = @(q) simpler_H(q); % function to maximize distance from singularities
 

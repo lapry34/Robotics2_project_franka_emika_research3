@@ -17,7 +17,7 @@ initial_offset = [-0.05; -0.05; -0.05]; % initial offset from the path
 alpha = 1;
 damp = 2;
 use_RG = true; % use reduced gradient step if true, else use projected gradient step
-use_accel = true; % use acceleration if true, else use velocity
+use_accel = false; % use acceleration if true, else use velocity
 
 % For RG only
 list_joints = 1:N;

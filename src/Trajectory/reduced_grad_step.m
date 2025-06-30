@@ -36,7 +36,7 @@ function dq = reduced_grad_step(q, dr, qA_idx, qB_idx, p_d, Kp)
     %J_a_inv = DLS(J_a); % damped least squares inverse of J_a
 
     % H_man = sqrt(det(J * J')); % maximize distance from singularities  (6x7 * 7x6 = 6x6)
-    H_man = @(q) sqrt(det(get_J(q) * get_J(q)'));
+    H_man = @(q) sqrt(det(get_J(q, orientation) * get_J(q, orientation)'));
     %H_range = @(q) H_range_dist(q);
 
     H = H_man;
