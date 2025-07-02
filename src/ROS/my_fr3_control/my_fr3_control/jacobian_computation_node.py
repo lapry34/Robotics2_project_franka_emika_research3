@@ -244,6 +244,8 @@ class JacobianComputation(Node):
 
             if self.orientation:
                 J = self._get_task_J(J, q_var=q_var)
+            else:
+                J = J[:3, :]
             return J
         
         if self.acceleration:
