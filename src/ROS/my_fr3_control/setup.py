@@ -11,7 +11,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/launch',
-            ['launch/my_fr3_launch.py', 'launch/controller_launch.py']),
+            ['launch/my_fr3_launch.py']),
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -24,10 +24,8 @@ setup(
         'console_scripts': [
             'velocity_controller_node = my_fr3_control.velocity_controller_node:main',
             'acceleration_controller_node = my_fr3_control.acceleration_controller_node:main',
-            'jacobian_computation_node = my_fr3_control.jacobian_computation_node:main',
-            # 'circle_palle = my_fr3_control.circle_palle:main',
+            'worker_node = my_fr3_control.worker_node:main',
         ],
     },
-    # scripts=['scripts/random_joint_publisher_fr3.py'],
 
 )

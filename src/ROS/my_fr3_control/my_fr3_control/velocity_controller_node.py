@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import os
 
 
-class ProjectedGradientController(Node):
+class MasterNodeVelocity(Node):
     def __init__(self):
         super().__init__('projected_gradient_ori_controller')
         self.N = 7           # number of joints
@@ -33,13 +33,12 @@ class ProjectedGradientController(Node):
         self.img_path = '/home/kristoj/Documents/franka_ros2_ws/Results/' + path + '/'
 
         # Ensure the image path exists
-        if not os.path.exists(self.img_path):
-            os.makedirs(self.img_path)
+        os.makedirs(self.img_path, exist_ok=True)
 
-        # # delete all previous plots
-        # for file in os.listdir(self.img_path):
-        #     if file.endswith('.png'):
-        #         os.remove(os.path.join(self.img_path, file))
+        # delete all previous plots
+        for file in os.listdir(self.img_path):
+            if file.endswith('.png'):
+                os.remove(os.path.join(self.img_path, file))
 
 
         # Joint limits
@@ -142,7 +141,7 @@ class ProjectedGradientController(Node):
 
         # Timer for control loop
         self.timer = self.create_timer(self.dt, self.control_callback)
-        self.get_logger().info('ProjectedGradientController initialized')
+        self.get_logger().info('MasterNodeVelocity initialized')
 
     def control_callback(self):
         if self.t > self.t_fin:
@@ -387,7 +386,7 @@ class ProjectedGradientController(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = ProjectedGradientController()
+    node = MasterNodeVelocity()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:

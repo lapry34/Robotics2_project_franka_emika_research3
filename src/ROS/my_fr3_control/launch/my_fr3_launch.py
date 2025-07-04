@@ -11,10 +11,10 @@ from launch_ros.actions import Node
 def generate_launch_description():
     # 1) Declare a launch argument for orientation
     
-    isRG_v = False
+    isRG_v = True
     acceleration_v = True
     circular_v = True
-    orientation_v = False
+    orientation_v = True
 
     # 2) Include the standard visualize_franka launch
     franka_vis = IncludeLaunchDescription(
@@ -44,15 +44,13 @@ def generate_launch_description():
     ])
 
     # 4) Launch the JacobianComputer node, passing orientation from launch argument
-    jacobian_node = Node(
+    worker_node = Node(
         package='my_fr3_control',
-        executable='jacobian_computation_node',
-        name='jacobian_computer_node',
+        executable='worker_node',
+        name='worker_node',
         output='screen',
         parameters=[{
             'robot_description': ParameterValue(robot_description, value_type=str),
-            # 'orientation': ParameterValue(LaunchConfiguration('orientation'), value_type=bool),
-            # 'acceleration': ParameterValue(LaunchConfiguration('acceleration'), value_type=bool),
             'orientation': orientation_v,
             'acceleration': acceleration_v,
         }]
@@ -69,7 +67,7 @@ def generate_launch_description():
 
     if acceleration_v:
 
-        proj_grad_node = Node(
+        master_node = Node(
             package='my_fr3_control',
             executable='acceleration_controller_node',
             name=name,
@@ -77,9 +75,6 @@ def generate_launch_description():
             parameters=[{
                 'T': T,  # Trajectory duration
                 'dt': dt,  # Control loop period
-                # 'orientation': ParameterValue(LaunchConfiguration('orientation'), value_type=bool),
-                # 'is_RG': ParameterValue(LaunchConfiguration('is_RG'), value_type=bool),
-                # 'circular': ParameterValue(LaunchConfiguration('circular'), value_type=bool)
                 'orientation': orientation_v,
                 'is_RG': isRG_v,
                 'circular': circular_v
@@ -88,7 +83,7 @@ def generate_launch_description():
 
     else:
 
-        proj_grad_node = Node(
+        master_node = Node(
             package='my_fr3_control',
             executable='velocity_controller_node',
             name=name,
@@ -96,29 +91,18 @@ def generate_launch_description():
             parameters=[{
                 'T': T,  # Trajectory duration
                 'dt': dt,  # Control loop period
-                # 'orientation': ParameterValue(LaunchConfiguration('orientation'), value_type=bool),
-                # 'is_RG': ParameterValue(LaunchConfiguration('is_RG'), value_type=bool),
-                # 'circular': ParameterValue(LaunchConfiguration('circular'), value_type=bool)
                 'orientation': orientation_v,
                 'is_RG': isRG_v,
                 'circular': circular_v
             }]
         )
-    
-    circle_node = Node(
-        package='my_fr3_control',
-        executable='circle_palle',
-        name='circle',
-        output='screen',
-        parameters=[]
-    )
+
 
 
 
     return LaunchDescription([
 
         franka_vis,
-        jacobian_node,
-        proj_grad_node,
-        # circle_node
+        worker_node,
+        master_node,
     ])

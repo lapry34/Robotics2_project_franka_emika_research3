@@ -14,7 +14,7 @@ Dependencies:
 Usage:
   1. Make sure your FR3 URDF is loaded and a JointState publisher (e.g., the random joint publisher) is running.
   2. Run this node:
-       ros2 run my_fr3_control jacobian_computation_node
+       ros2 run my_fr3_control worker_node
 
 Note:
   Requires `urdf_parser_py` and `kdl_parser_py` for parsing the URDF into a KDL chain,
@@ -33,7 +33,7 @@ from visualization_msgs.msg import Marker
 from geometry_msgs.msg import Point
 
 
-class JacobianComputation(Node):
+class WorkerNode(Node):
     def __init__(self):
         super().__init__('jacobian_computer_node')
 
@@ -207,7 +207,7 @@ class JacobianComputation(Node):
     def _update_joints(self, msg: JointState):
         if not msg.velocity:
             # ignore if no velocity information is provided
-            self.get_logger().info("JointState message does not contain velocity information. Defaulting to zero velocities.")
+            self.get_logger().info("Please, close the 'Joint State Publisher' pop up window.")
             return False
         for idx, name in enumerate(msg.name):
             if idx < self.joint_positions.rows():
@@ -345,7 +345,7 @@ class JacobianComputation(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = JacobianComputation()
+    node = WorkerNode()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:

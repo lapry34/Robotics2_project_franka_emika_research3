@@ -10,7 +10,7 @@ import os
 from geometry_msgs.msg import Point
 from visualization_msgs.msg import Marker
 
-class ProjectedGradientController(Node):
+class MasterNodeAcceleration(Node):
     def __init__(self):
         super().__init__('projected_gradient_ori_controller')
         self.N = 7           # number of joints
@@ -39,12 +39,11 @@ class ProjectedGradientController(Node):
         self.img_path = '/home/kristoj/Documents/franka_ros2_ws/Results/' + path + '/'
 
         # Ensure the image path exists
-        if not os.path.exists(self.img_path):
-            os.makedirs(self.img_path)
-        # # delete all previous plots
-        # for file in os.listdir(self.img_path):
-        #     if file.endswith('.png'):
-        #         os.remove(os.path.join(self.img_path, file))
+        os.makedirs(self.img_path, exist_ok=True)
+        # delete all previous plots
+        for file in os.listdir(self.img_path):
+            if file.endswith('.png'):
+                os.remove(os.path.join(self.img_path, file))
 
 
         # Joint limits
@@ -155,7 +154,7 @@ class ProjectedGradientController(Node):
 
         # Timer for control loop
         self.timer = self.create_timer(self.dt, self.control_callback)
-        self.get_logger().info('ProjectedGradientController initialized')
+        self.get_logger().info('MasterNodeAcceleration initialized')
 
     def control_callback(self):
         if self.t > self.t_fin:
@@ -164,13 +163,8 @@ class ProjectedGradientController(Node):
             self.get_logger().info('Resetting trajectory.')
             return
 
-        if not self.circular and self.is_RG and self.t > self.T / 2:
-            if self.orientation:
-                self.qA_idx = np.array([1,2,3,4,5,6])
-                self.qB_idx = np.array([0])
-            else:
-                self.qA_idx = np.array([0,3,4])
-                self.qB_idx = np.array([1,2,5,6])
+        if self.is_RG:
+            self.switch_joints()
 
         # quintic polynomial and derivative
         tau = self.t / self.T
@@ -201,6 +195,25 @@ class ProjectedGradientController(Node):
 
         self.t += self.dt
 
+    def switch_joints(self):
+
+        # if 2.0 < self.t < 2.1:
+        #     self.qA_idx = np.array([0,1,2,3,5,6])
+        #     self.qB_idx = np.array([4])
+
+        if self.t > self.T / 2 and self.once:
+            self.once = False
+            # self.get_logger().warn('switched joints')
+            if self.orientation:
+                if self.circular :
+                    self.qA_idx = np.array([0,1,2,3,4,6])
+                    self.qB_idx = np.array([5])
+                else:
+                    self.qA_idx = np.array([1,2,3,4,5,6])
+                    self.qB_idx = np.array([0])
+            elif not self.circular:
+                self.qA_idx = np.array([0,3,4])
+                self.qB_idx = np.array([1,2,5,6])
 
 
     def get_reference_trajectory(self, s, ds, dds):
@@ -310,9 +323,9 @@ class ProjectedGradientController(Node):
         # linear
         Kp = 12 * np.eye(self.rows)
         Kd = 9 * np.eye(self.rows)
-        # alpha=1
-        # Kp = 0 * np.eye(self.rows)
-        # Kd = 0 * np.eye(self.rows)
+        # alpha=0.2
+        # Kp = 12.5 * np.eye(self.rows)
+        # Kd = 9.5 * np.eye(self.rows)
         PD_control = Kp.dot(e) + Kd.dot(e_dot)
 
         ddq_b = grad_H_b_prime  # joint velocities for B
@@ -365,6 +378,7 @@ class ProjectedGradientController(Node):
         # BUT TOO SLOW FOR REAL-TIME -> dont do it every call
 
     def reset(self):
+        self.once = True  # Reset once flag for reduced gradient
 
         self.plot_joints()
 
@@ -388,10 +402,15 @@ class ProjectedGradientController(Node):
         # J_a and J_b column indices for reduced gradient
         if self.is_RG:
             if self.orientation:
-                # self.qA_idx = np.array([0,1,2,3,4,5])
-                # self.qB_idx = np.array([6])
-                self.qA_idx = np.array([0,1,3,4,5,6])
-                self.qB_idx = np.array([2])
+                if self.circular:
+                    self.qA_idx = np.array([0,1,2,3,6,5])
+                    self.qB_idx = np.array([4])
+                else:
+                    self.qA_idx = np.array([0,1,3,4,5,6])
+                    self.qB_idx = np.array([2])
+                    # self.qA_idx = np.array([0,1,2,3,4,5])
+                    # self.qB_idx = np.array([6])
+
             else:
                 # self.qA_idx = np.array([1,3,4])
                 # self.qB_idx = np.array([0,2,5,6])
@@ -456,7 +475,7 @@ class ProjectedGradientController(Node):
 
 def main(args=None):
     rclpy.init(args=args)
-    node = ProjectedGradientController()
+    node = MasterNodeAcceleration()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
